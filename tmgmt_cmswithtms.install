@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function tmgmt_cmswithtms_schema() {
+  $schema['tmgmt_cmswithtms'] = array(
+    'description' => 'A translation job represents a translation order that can be assigned to a translator.',
+    'fields' => array(
+      'tjid' => array(
+        'description' => 'The identifier of the translation job.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'job_id' => array(
+        'description' => 'GlobalSight Job ID.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'job_name' => array(
+        'description' => 'GlobalSight Job Name.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'status' => array(
+        'description' => 'The state of the translation job.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+      ),
+      'profile_id' => array(
+        'description' => 'GlobalSight Profile ID.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('tjid'),
+    'indexes' => array(
+      'status' => array('status'),
+    ),
+  );
+
+  return $schema;
+}

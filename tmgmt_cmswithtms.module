@@ -1,0 +1,63 @@
+<?php
+
+global $base_url;
+define('GS_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_cmswithtms') . '/AmbassadorWebService.xml'));
+
+
+function tmgmt_cmswithtms_cron() {
+  $result = db_select('tmgmt_cmswithtms', 't')
+    ->fields('t')
+    ->condition('status', 0, '>')
+    ->execute();
+
+  while ($record = $result->fetchAssoc()) {
+    $job = tmgmt_job_load($record['tjid']);
+    if (!$job) {
+      continue;
+    }
+    tmgmt_cmswithtms_ping($job, $record);
+  }
+}
+
+function tmgmt_cmswithtms_ping($job, $record) {
+
+  // Initialize GlobalSight
+  $gs = new TMGMTGlobalSightConnector($job->getTranslator());
+  $status = $gs->getStatus($record['job_name']);
+
+  // Skip execution if GlobalSight status hasn't changed
+  if ($status['status'] == $gs->code2status($record['status'])) {
+    dsm('no new changes');
+    return;
+  }
+
+  // So we have translations now!
+  if ($status['status'] == 'EXPORTED' || $status['status'] == 'LOCALIZED') {
+    // Send API request to GS
+    $translation = $gs->receive($record['job_name']);
+    // Update translations per each job item
+    $job->addTranslatedData(tmgmt_unflatten_data($translation));
+    // Update our little mapping table -- archive job
+    $record['status'] = 0;
+    drupal_write_record('tmgmt_cmswithtms', $record, array('tjid'));
+  }
+}
+
+/**
+ * Implements hook_tmgmt_translator_plugin_info().
+ */
+function tmgmt_cmswithtms_tmgmt_translator_plugin_info() {
+  return array(
+    'cmswithtms' => array(
+      'label' => t('CMSwithTMS translator'),
+      'description' => t('An open source translation management service.'),
+      'plugin controller class' => 'TMGMTCMSwithTMSTranslatorPluginController',
+      'ui controller class' => 'TMGMTCMSwithTMSTranslatorUIController',
+      'default settings' => array(
+        'endpoint' => '',
+        'username' => '',
+        'password' => '',
+      ),
+    ),
+  );
+}
