@@ -60,6 +60,18 @@ class TMGMTGlobalSightConnector {
 
     $result = $this->webservice->call('login', $params);
 
+    if ($this->webservice->fault) {
+      if (!($err = $this->webservice->getError())) {
+        $err = 'No error details';
+      }
+      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
+      watchdog(
+        'tmgmt_cmswithtms', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
+        '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/cmswithtms'),
+        '%err' => $err), WATCHDOG_ERROR);
+      return FALSE;
+    }
+
     return $result;
   }
 
@@ -73,7 +85,9 @@ class TMGMTGlobalSightConnector {
   function getLocales() {
     $locales = array();
 
-    $access_token = $this->login();
+    if (!($access_token = $this->login())) {
+      return FALSE;
+    }
 
     $params = array('p_accessToken' => $access_token);
     $result = $this->webservice->call('getFileProfileInfoEx', $params);
@@ -134,20 +148,9 @@ class TMGMTGlobalSightConnector {
    *  Major rewrite of gs_create_translation_job()
    */
   function send($job, $name = FALSE) {
-    $result = $this->login();
-
-    if ($this->webservice->fault) {
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      watchdog('tmgmt_cmswithtms', "Error connecting to GlobalSight - Fault");
+    if (!($access_token = $this->login())) {
       return FALSE;
     }
-
-    if ($err = $this->webservice->getError()) {
-      watchdog('cmswithtms', "Error connecting to GlobalSight - $err");
-      return FALSE;
-    }
-
-    $access_token = $result;
 
     if (!$name) {
       $name = $this->generateJobTitle($job);
@@ -181,20 +184,9 @@ class TMGMTGlobalSightConnector {
   }
 
   function getStatus($job_name) {
-    $result = $this->login();
-
-    if ($this->webservice->fault) {
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      watchdog('tmgmt_cmswithtms', "Error connecting to GlobalSight - Fault");
+    if (!($access_token = $this->login())) {
       return FALSE;
     }
-
-    if ($err = $this->webservice->getError()) {
-      watchdog('cmswithtms', "Error connecting to GlobalSight - $err");
-      return FALSE;
-    }
-
-    $access_token = $result;
 
     $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
     $result = $this->webservice->call('getStatus', $params);
@@ -205,20 +197,9 @@ class TMGMTGlobalSightConnector {
 
   function receive($job_name) {
 
-    $result = $this->login();
-
-    if ($this->webservice->fault) {
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      watchdog('tmgmt_cmswithtms', "Error connecting to GlobalSight - Fault");
+    if (!($access_token = $this->login())) {
       return FALSE;
     }
-
-    if ($err = $this->webservice->getError()) {
-      watchdog('cmswithtms', "Error connecting to GlobalSight - $err");
-      return FALSE;
-    }
-
-    $access_token = $result;
 
     $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
     $result = $this->webservice->call("getLocalizedDocuments", $params);
@@ -231,7 +212,7 @@ class TMGMTGlobalSightConnector {
     dsm($result);
     $xml = new SimpleXMLElement($result);
     $paths = $xml->paths;
-    
+
     $results = array();
     foreach ($paths as $path) {
       $path = trim((string) $path);
@@ -250,19 +231,17 @@ class TMGMTGlobalSightConnector {
       else {
         $xml = file_get_contents($download_url_prefix . '/' . $path);
       }
-      
+
       dsm($xml);
 
-      $xmlObject = simplexml_load_string($xml,'SimpleXMLElement', LIBXML_NOCDATA);
-      foreach($xmlObject->field as $field) {
+      $xmlObject = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOCDATA);
+      foreach ($xmlObject->field as $field) {
         $value = (string) $field->value;
         $key = (string) $field->name;
         $results[$key] = array(
           '#text' => $value,
         );
       }
-      
-      
     }
 
     return $results;

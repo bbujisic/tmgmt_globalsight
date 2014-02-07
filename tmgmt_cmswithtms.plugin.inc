@@ -10,7 +10,9 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
 
     $gs = new TMGMTGlobalSightConnector($translator);
 
-    $locales = $gs->getLocales();
+    if (!($locales = $gs->getLocales())) {
+      return FALSE;
+    }
 
     $maps = $this->getRemoteLanguagesMappings($translator);
 
