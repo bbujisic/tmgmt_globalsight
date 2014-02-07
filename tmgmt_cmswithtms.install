@@ -12,11 +12,6 @@ function tmgmt_cmswithtms_schema() {
         'type' => 'int',
         'not null' => TRUE,
       ),
-      'job_id' => array(
-        'description' => 'GlobalSight Job ID.',
-        'type' => 'int',
-        'not null' => FALSE,
-      ),
       'job_name' => array(
         'description' => 'GlobalSight Job Name.',
         'type' => 'varchar',
@@ -30,12 +25,6 @@ function tmgmt_cmswithtms_schema() {
         'size' => 'tiny',
         'unsigned' => TRUE,
       ),
-      'profile_id' => array(
-        'description' => 'GlobalSight Profile ID.',
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-      ),
     ),
     'primary key' => array('tjid'),
     'indexes' => array(
@@ -44,4 +33,12 @@ function tmgmt_cmswithtms_schema() {
   );
 
   return $schema;
+}
+
+/**
+ * Remove job_id status and profile ID fields from {tmgmt_cmswithtms} table.
+ */
+function tmgmt_cmswithtms_update_7100() {
+  db_drop_field('tmgmt_cmswithtms', 'job_id');
+  db_drop_field('tmgmt_cmswithtms', 'profile_id');
 }
