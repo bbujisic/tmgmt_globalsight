@@ -2,7 +2,7 @@
 
 /* +
  * @todo:
- * 
+ *
  *   - Remove "Values" attribute from methods and add logic for it somewhere in
  *     object constructor
  */
@@ -78,7 +78,7 @@ class TMGMTGlobalSightConnector {
   /**
    * Sends 'getFileProfileInfoEx' API request and parses a list of available
    * languages
-   * 
+   *
    * @param type $values
    * @return type
    */
@@ -144,10 +144,10 @@ class TMGMTGlobalSightConnector {
 
   /**
    *  Function which encodes and sends translation job to GlobalSight
-   * 
+   *
    *  Major rewrite of gs_create_translation_job()
    */
-  function send($job, $name = FALSE) {
+  function send($job, $target_locale, $name = FALSE) {
     if (!($access_token = $this->login())) {
       return FALSE;
     }
@@ -156,9 +156,6 @@ class TMGMTGlobalSightConnector {
       $name = $this->generateJobTitle($job);
     }
 
-
-    $target_locale = 'de_DE';
-    // $target_locale = gs_get_gs_locale_by_lang_code($to);
     $xml = $this->encodeXML($job);
 
     $params = array(
@@ -264,7 +261,7 @@ class TMGMTGlobalSightConnector {
    *
    * This function is part of the PHP manual.
    *
-   * The PHP manual text and comments are covered by the Creative Commons 
+   * The PHP manual text and comments are covered by the Creative Commons
    * Attribution 3.0 License, copyright (c) the PHP Documentation Group
    *
    * @author  k dot antczak at livedata dot pl

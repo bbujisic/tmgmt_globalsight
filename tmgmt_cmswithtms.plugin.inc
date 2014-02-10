@@ -28,11 +28,17 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
   }
 
   public function requestTranslation(TMGMTJob $job) {
+    $translator = $job->getTranslator();
+
     // Initialize GlobalSight
-    $gs = new TMGMTGlobalSightConnector($job->getTranslator());
+    $gs = new TMGMTGlobalSightConnector($translator);
+
+    // Determine target language
+    $maps = $this->getRemoteLanguagesMappings($translator);
+    $target_locale = $maps[$job->target_language];
 
       // Totally new translation job
-      if ($result = $gs->send($job)) {
+      if ($result = $gs->send($job, $target_locale)) {
         $record = array(
           'tjid' => $job->tjid,
           'job_name' => $result['jobName'],
