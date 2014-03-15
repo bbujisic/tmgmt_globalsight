@@ -37,26 +37,25 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
     $maps = $this->getRemoteLanguagesMappings($translator);
     $target_locale = $maps[$job->target_language];
 
-      // Totally new translation job
-      if ($result = $gs->send($job, $target_locale)) {
-        // Okay we managed to login, but we are not sure if GS received translations
-        // Check job status
-        $ok = $gs->uploadErrorHandler($result['jobName']);
-        if ($ok) {
-          $record = array(
+    // Totally new translation job
+    if ($result = $gs->send($job, $target_locale)) {
+      // Okay we managed to login, but we are not sure if GS received translations
+      // Check job status
+      $ok = $gs->uploadErrorHandler($result['jobName']);
+      if ($ok) {
+        $record = array(
           'tjid' => $job->tjid,
           'job_name' => $result['jobName'],
           'status' => 1,
         );
         $job->submitted('The translation job has been submitted.');
         drupal_write_record('tmgmt_cmswithtms', $record);
-        }
-        else {
-          // cancel the job
-          $job->cancelled('Translation job was cancelled due to unrecoverable error.');
-        }
-
       }
+      else {
+        // cancel the job
+        $job->cancelled('Translation job was cancelled due to unrecoverable error.');
+      }
+    }
   }
 
   /* what is this? */

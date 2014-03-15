@@ -3,13 +3,18 @@
 global $base_url;
 define('GS_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_cmswithtms') . '/AmbassadorWebService.xml'));
 
-
+/**
+ * Implements hook_cron().
+ */
 function tmgmt_cmswithtms_cron() {
+  
+  // Retrieve the list of all opened jobs
   $result = db_select('tmgmt_cmswithtms', 't')
     ->fields('t')
     ->condition('status', 0, '>')
     ->execute();
 
+  // Loop through jobs and check for translations
   while ($record = $result->fetchAssoc()) {
     $job = tmgmt_job_load($record['tjid']);
     if (!$job) {
@@ -19,6 +24,13 @@ function tmgmt_cmswithtms_cron() {
   }
 }
 
+/**
+ * Retrieves job data from GS server and, if status is "Exported" or "Localized"
+ * recieves translation and adds translated data
+ * 
+ * @param $job    Loaded TMGMT Job object.
+ * @param $record {tmgmt_cmswithtms} record connecting TMGMT and GS jobs
+ */
 function tmgmt_cmswithtms_ping($job, $record) {
 
   // Initialize GlobalSight

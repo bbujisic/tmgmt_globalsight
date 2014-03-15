@@ -279,7 +279,6 @@ class TMGMTGlobalSightConnector {
     return $out;
   }
 
-
   function uploadErrorHandler($jobName) {
     $status = $this->getStatus($jobName);
     $status = $status['status'];
@@ -292,8 +291,7 @@ class TMGMTGlobalSightConnector {
     // IMPORT_FAILED appears to be status when XML file is corrupt
     if ($status == 'IMPORT_FAILED') {
       watchdog(
-        'tmgmt_cmswithtms',
-        "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
+        'tmgmt_cmswithtms', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
       drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
       return FALSE;
     }
@@ -307,16 +305,13 @@ class TMGMTGlobalSightConnector {
 
         // Consolidate this messaging into an error handler and inject it as dependency
         watchdog(
-        'tmgmt_cmswithtms',
-        "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
+          'tmgmt_cmswithtms', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
         drupal_set_message(t('Error creating job at GlobalSight. Translation job canceled.'), 'error');
-      return FALSE;
+        return FALSE;
       }
     }
 
     return TRUE;
-
-
   }
 
 }
