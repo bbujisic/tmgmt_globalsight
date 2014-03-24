@@ -40,7 +40,7 @@ class TMGMTGlobalSightConnector {
     //module_load_include('inc', 'tmgmt_globalsight', 'lib/GlobalSight.helpers');
     //module_load_include('inc', 'tmgmt_globalsight', 'menu/GlobalSight.dashboard');
 
-    $this->webservice = new nusoap_client(GS_WSDL_URL, true);
+    $this->webservice = new nusoap_client(GLOBALSIGHT_WSDL_URL, true);
     $this->webservice->setEndpoint($this->endpoint);
   }
 
