@@ -43,6 +43,10 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
       // Check job status
       $ok = $gs->uploadErrorHandler($result['jobName']);
       if ($ok) {
+
+        // Make sure that there are not previous records of the job
+        _tmgmt_cmswithtms_delete_job($job->tjid);
+
         $record = array(
           'tjid' => $job->tjid,
           'job_name' => $result['jobName'],
@@ -56,6 +60,21 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
         $job->cancelled('Translation job was cancelled due to unrecoverable error.');
       }
     }
+  }
+
+  public function cancelTranslation(TMGMTJob $job) {
+    $job_name = db_query('SELECT job_name FROM {tmgmt_cmswithtms} WHERE tjid = :tjid', array(':tjid' => $job->tjid))->fetchField();
+
+    $translator = $job->getTranslator();
+    $gs = new TMGMTGlobalSightConnector($translator);
+
+    if ($status = $gs->cancel($job_name)) {
+      _tmgmt_cmswithtms_archive_job($job->tjid);
+      $job->cancelled('The translation job has successfully been canceled');
+      return TRUE;
+    }
+    
+    return FALSE;
   }
 
   /* what is this? */

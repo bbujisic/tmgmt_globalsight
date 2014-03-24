@@ -180,6 +180,13 @@ class TMGMTGlobalSightConnector {
     return $params;
   }
 
+  /**
+   * 
+   * @param type $job_name
+   * @return mixed
+   *  - FALSE : Ignore the status, move on...
+   *  - "PERMANENT ERROR" : There is a permanent error at GS. Cancel the job.
+   */
   function getStatus($job_name) {
     if (!($access_token = $this->login())) {
       return FALSE;
@@ -187,6 +194,46 @@ class TMGMTGlobalSightConnector {
 
     $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
     $result = $this->webservice->call('getStatus', $params);
+
+    if ($this->webservice->fault) {
+      if (!($err = $this->webservice->getError())) {
+        $err = 'No error details';
+      }
+      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
+      watchdog(
+        'tmgmt_cmswithtms', "Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+        '!job_name' => $job_name,
+        '%err' => $err), WATCHDOG_ERROR);
+      return 'PERMANENT ERROR';
+    }
+    
+    // @TODO: Something wrong happened here. Debug.
+    // Two clicks on submit after some stalling resulted in bypassing webservice->fault
+    // http://globalme.dev/admin/reports/event/523
+
+    $xml = new SimpleXMLElement($result);
+    return $this->xml2array($xml);
+  }
+
+  function cancel($job_name) {
+    if (!($access_token = $this->login())) {
+      return FALSE;
+    }
+
+    $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
+    $result = $this->webservice->call('cancelJob', $params);
+    
+    if ($this->webservice->fault) {
+      if (!($err = $this->webservice->getError())) {
+        $err = 'No error details';
+      }
+      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
+      watchdog(
+        'tmgmt_cmswithtms', "Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
+        '!job_name' => $job_name,
+        '%err' => $err));
+      return FALSE;
+    }
 
     $xml = new SimpleXMLElement($result);
     return $this->xml2array($xml);

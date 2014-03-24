@@ -7,7 +7,7 @@ define('GS_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_cmswit
  * Implements hook_cron().
  */
 function tmgmt_cmswithtms_cron() {
-  
+
   // Retrieve the list of all opened jobs
   $result = db_select('tmgmt_cmswithtms', 't')
     ->fields('t')
@@ -32,10 +32,18 @@ function tmgmt_cmswithtms_cron() {
  * @param $record {tmgmt_cmswithtms} record connecting TMGMT and GS jobs
  */
 function tmgmt_cmswithtms_ping($job, $record) {
-
   // Initialize GlobalSight
   $gs = new TMGMTGlobalSightConnector($job->getTranslator());
+
   $status = $gs->getStatus($record['job_name']);
+  //dsm($status);
+
+  if ($status === "PERMANENT ERROR") {
+    // Update our little mapping table -- archive job
+    $record['status'] = 0;
+    drupal_write_record('tmgmt_cmswithtms', $record, array('tjid'));
+    $job->cancelled('Translation job was cancelled due to unrecoverable error.');
+  }
 
   // Skip execution if GlobalSight status hasn't changed
   if ($status['status'] == $gs->code2status($record['status'])) {
@@ -72,4 +80,22 @@ function tmgmt_cmswithtms_tmgmt_translator_plugin_info() {
       ),
     ),
   );
+}
+
+function _tmgmt_cmswithtms_delete_job($tjid) {
+  // Delete previous jobs (if any)
+  $num_deleted = db_delete('tmgmt_cmswithtms')
+    ->condition('tjid', $tjid)
+    ->execute();
+  
+  return $num_deleted;
+}
+
+function _tmgmt_cmswithtms_archive_job($tjid) {
+  $num_updated = db_update('tmgmt_cmswithtms')
+    ->fields(array('status' => 0))
+    ->condition('tjid', $tjid)
+    ->execute();
+  
+  return $num_updated;
 }
