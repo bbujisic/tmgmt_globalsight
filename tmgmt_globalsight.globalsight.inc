@@ -37,8 +37,8 @@ class TMGMTGlobalSightConnector {
     $this->base_url = $GLOBALS['base_url'];
 
     module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/nusoap');
-    //module_load_include('inc', 'tmgmt_globalsight', 'lib/cmswithtms.helpers');
-    //module_load_include('inc', 'tmgmt_globalsight', 'menu/cmswithtms.dashboard');
+    //module_load_include('inc', 'tmgmt_globalsight', 'lib/GlobalSight.helpers');
+    //module_load_include('inc', 'tmgmt_globalsight', 'menu/GlobalSight.dashboard');
 
     $this->webservice = new nusoap_client(GS_WSDL_URL, true);
     $this->webservice->setEndpoint($this->endpoint);
@@ -46,12 +46,12 @@ class TMGMTGlobalSightConnector {
 
   // Question: do we really have to login before each request (see get_locales), maybe we should cache access token...
   function login($values = array()) {
-    if (isset($values['cmswithtms_proxyhost'])) {
-      $this->proxyhost = $values['cmswithtms_proxyhost'];
+    if (isset($values['GlobalSight_proxyhost'])) {
+      $this->proxyhost = $values['GlobalSight_proxyhost'];
     };
 
-    if (isset($values['cmswithtms_proxyport'])) {
-      $this->proxyhost = $values['cmswithtms_proxyport'];
+    if (isset($values['GlobalSight_proxyport'])) {
+      $this->proxyhost = $values['GlobalSight_proxyport'];
     };
 
     $this->webservice->setHTTPProxy($this->proxyhost, $this->proxyport);
@@ -67,7 +67,7 @@ class TMGMTGlobalSightConnector {
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       watchdog(
         'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
-        '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/cmswithtms'),
+        '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/GlobalSight'),
         '%err' => $err), WATCHDOG_ERROR);
       return FALSE;
     }
@@ -161,7 +161,7 @@ class TMGMTGlobalSightConnector {
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
-      'filePath' => 'cmswithtms.xml',
+      'filePath' => 'GlobalSight.xml',
       'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
@@ -171,7 +171,7 @@ class TMGMTGlobalSightConnector {
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
-      'filePaths' => 'cmswithtms.xml',
+      'filePaths' => 'GlobalSight.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );

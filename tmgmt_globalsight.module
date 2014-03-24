@@ -60,11 +60,11 @@ function tmgmt_globalsight_ping($job, $record) {
  */
 function tmgmt_globalsight_tmgmt_translator_plugin_info() {
   return array(
-    'cmswithtms' => array(
-      'label' => t('CMSwithTMS translator'),
+    'globalsight' => array(
+      'label' => t('GlobalSight translator'),
       'description' => t('An open source translation management service.'),
-      'plugin controller class' => 'TMGMTCMSwithTMSTranslatorPluginController',
-      'ui controller class' => 'TMGMTCMSwithTMSTranslatorUIController',
+      'plugin controller class' => 'TMGMTGlobalSightTranslatorPluginController',
+      'ui controller class' => 'TMGMTGlobalSightTranslatorUIController',
       'default settings' => array(
         'endpoint' => '',
         'username' => '',

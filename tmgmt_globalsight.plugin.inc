@@ -1,6 +1,6 @@
 <?php
 
-class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPluginController {
+class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorPluginController {
 
   public function canTranslate(TMGMTTranslator $translator, TMGMTJob $job) {
 

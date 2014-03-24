@@ -1,4 +1,4 @@
-name = CMSwithTMS Translator
+name = GlobalSight Translator
 description = An OpenSource Translator using GlobalSight.
 package = Translation Management
 core = 7.x
