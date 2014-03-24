@@ -1,15 +1,15 @@
 <?php
 
 global $base_url;
-define('GS_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_cmswithtms') . '/AmbassadorWebService.xml'));
+define('GS_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
 
 /**
  * Implements hook_cron().
  */
-function tmgmt_cmswithtms_cron() {
+function tmgmt_globalsight_cron() {
   
   // Retrieve the list of all opened jobs
-  $result = db_select('tmgmt_cmswithtms', 't')
+  $result = db_select('tmgmt_globalsight', 't')
     ->fields('t')
     ->condition('status', 0, '>')
     ->execute();
@@ -20,7 +20,7 @@ function tmgmt_cmswithtms_cron() {
     if (!$job) {
       continue;
     }
-    tmgmt_cmswithtms_ping($job, $record);
+    tmgmt_globalsight_ping($job, $record);
   }
 }
 
@@ -29,9 +29,9 @@ function tmgmt_cmswithtms_cron() {
  * recieves translation and adds translated data
  * 
  * @param $job    Loaded TMGMT Job object.
- * @param $record {tmgmt_cmswithtms} record connecting TMGMT and GS jobs
+ * @param $record {tmgmt_globalsight} record connecting TMGMT and GS jobs
  */
-function tmgmt_cmswithtms_ping($job, $record) {
+function tmgmt_globalsight_ping($job, $record) {
 
   // Initialize GlobalSight
   $gs = new TMGMTGlobalSightConnector($job->getTranslator());
@@ -51,14 +51,14 @@ function tmgmt_cmswithtms_ping($job, $record) {
     $job->addTranslatedData(tmgmt_unflatten_data($translation));
     // Update our little mapping table -- archive job
     $record['status'] = 0;
-    drupal_write_record('tmgmt_cmswithtms', $record, array('tjid'));
+    drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
   }
 }
 
 /**
  * Implements hook_tmgmt_translator_plugin_info().
  */
-function tmgmt_cmswithtms_tmgmt_translator_plugin_info() {
+function tmgmt_globalsight_tmgmt_translator_plugin_info() {
   return array(
     'cmswithtms' => array(
       'label' => t('CMSwithTMS translator'),

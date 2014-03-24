@@ -49,7 +49,7 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
           'status' => 1,
         );
         $job->submitted('The translation job has been submitted.');
-        drupal_write_record('tmgmt_cmswithtms', $record);
+        drupal_write_record('tmgmt_globalsight', $record);
       }
       else {
         // cancel the job

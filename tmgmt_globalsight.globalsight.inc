@@ -36,9 +36,9 @@ class TMGMTGlobalSightConnector {
     $this->file_profile_id = $translator->getSetting('file_profile_id');
     $this->base_url = $GLOBALS['base_url'];
 
-    module_load_include('php', 'tmgmt_cmswithtms', 'lib/nusoap/nusoap');
-    //module_load_include('inc', 'tmgmt_cmswithtms', 'lib/cmswithtms.helpers');
-    //module_load_include('inc', 'tmgmt_cmswithtms', 'menu/cmswithtms.dashboard');
+    module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/nusoap');
+    //module_load_include('inc', 'tmgmt_globalsight', 'lib/cmswithtms.helpers');
+    //module_load_include('inc', 'tmgmt_globalsight', 'menu/cmswithtms.dashboard');
 
     $this->webservice = new nusoap_client(GS_WSDL_URL, true);
     $this->webservice->setEndpoint($this->endpoint);
@@ -66,7 +66,7 @@ class TMGMTGlobalSightConnector {
       }
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       watchdog(
-        'tmgmt_cmswithtms', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
+        'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
         '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/cmswithtms'),
         '%err' => $err), WATCHDOG_ERROR);
       return FALSE;
@@ -291,7 +291,7 @@ class TMGMTGlobalSightConnector {
     // IMPORT_FAILED appears to be status when XML file is corrupt
     if ($status == 'IMPORT_FAILED') {
       watchdog(
-        'tmgmt_cmswithtms', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
+        'tmgmt_globalsight', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
       drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
       return FALSE;
     }
@@ -305,7 +305,7 @@ class TMGMTGlobalSightConnector {
 
         // Consolidate this messaging into an error handler and inject it as dependency
         watchdog(
-          'tmgmt_cmswithtms', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
+          'tmgmt_globalsight', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
         drupal_set_message(t('Error creating job at GlobalSight. Translation job canceled.'), 'error');
         return FALSE;
       }
