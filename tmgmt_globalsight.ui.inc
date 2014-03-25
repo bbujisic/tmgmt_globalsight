@@ -2,12 +2,7 @@
 
 /**
  * @file
- * Please supply a file description.
- */
-
-/**
- * @file
- * Provides Gengo translation plugin controller.
+ * Provides GlobalSight translation plugin controller.
  */
 class TMGMTGlobalSightTranslatorUIController extends TMGMTDefaultTranslatorUIController {
 
@@ -50,24 +45,5 @@ class TMGMTGlobalSightTranslatorUIController extends TMGMTDefaultTranslatorUICon
 
     return parent::pluginSettingsForm($form, $form_state, $translator);
   }
-  
-  
-//    public function checkoutSettingsForm($form, &$form_state, TMGMTJob $job) {
-//    if ($translators = tmgmt_local_translators($job->source_language, array($job->target_language))) {
-//      $form['translator'] = array(
-//        '#title' => t('Select translator for this job'),
-//        '#type' => 'select',
-//        '#options' => array('' => t('Select user')) + $translators,
-//        '#default_value' => $job->getSetting('translator'),
-//      );
-//    }
-//    else {
-//      $form['message'] = array(
-//        '#markup' => t('There are no translators available.'),
-//      );
-//    }
-//
-//    return $form;
-//  }
 
 }

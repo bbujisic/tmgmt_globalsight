@@ -6,7 +6,6 @@ define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmg
 /**
  * Implements hook_cron().
  */
-
 function tmgmt_globalsight_cron() {
 
   // Retrieve the list of all opened jobs
@@ -29,10 +28,11 @@ function tmgmt_globalsight_cron() {
  * Retrieves job data from GS server and, if status is "Exported" or "Localized"
  * recieves translation and adds translated data
  *
- * @param $job    Loaded TMGMT Job object.
- * @param $record {tmgmt_globalsight} record connecting TMGMT and GS jobs
+ * @param $job
+ *   Loaded TMGMT Job object.
+ * @param $record
+ *   {tmgmt_globalsight} record connecting TMGMT and GS jobs
  */
-
 function tmgmt_globalsight_ping($job, $record) {
 
   // Initialize GlobalSight
@@ -90,7 +90,7 @@ function _tmgmt_globalsight_delete_job($tjid) {
   $num_deleted = db_delete('tmgmt_globalsight')
     ->condition('tjid', $tjid)
     ->execute();
-  
+
   return $num_deleted;
 }
 
@@ -99,6 +99,6 @@ function _tmgmt_globalsight_archive_job($tjid) {
     ->fields(array('status' => 0))
     ->condition('tjid', $tjid)
     ->execute();
-  
+
   return $num_updated;
 }

@@ -1,12 +1,16 @@
 <?php
-
-/* +
- * @todo:
+/**
+ * @file
+ * Provides GlobalSight connector.
  *
- *   - Remove "Values" attribute from methods and add logic for it somewhere in
- *     object constructor
+ * Check @link http://www.globalsight.com/
+ * GlobalSight @endlink for more info.
+ *
  */
 
+/**
+ * GlobalSight connector.
+ */
 class TMGMTGlobalSightConnector {
 
   // Settings
@@ -14,15 +18,14 @@ class TMGMTGlobalSightConnector {
   private $username = '';
   private $password = '';
   private $endpoint = '';
-  private $proxyhost = FALSE;  // ?
-  private $proxyport = FALSE;  // ?
+  private $proxyhost = FALSE; // ?
+  private $proxyport = FALSE; // ?
   private $file_profile_id = ''; // ?
   // Objects
   private $webservice;
 
   /**
    * Construct the connector to GlobalSight service.
-   * Try to keep only this method specific to Drupal and TMGMT !!!!
    *
    * @param TMGMTTranslator $translator
    *   Translator which has the connection settings.
@@ -37,14 +40,18 @@ class TMGMTGlobalSightConnector {
     $this->base_url = $GLOBALS['base_url'];
 
     module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/nusoap');
-    //module_load_include('inc', 'tmgmt_globalsight', 'lib/GlobalSight.helpers');
-    //module_load_include('inc', 'tmgmt_globalsight', 'menu/GlobalSight.dashboard');
 
-    $this->webservice = new nusoap_client(GLOBALSIGHT_WSDL_URL, true);
+    $this->webservice = new nusoap_client(GLOBALSIGHT_WSDL_URL, TRUE);
     $this->webservice->setEndpoint($this->endpoint);
   }
 
-  // Question: do we really have to login before each request (see get_locales), maybe we should cache access token...
+  /**
+   * Login method sends access parameters to Globalsight and, upon success, receives access token.
+   *
+   * @param array $values
+   *
+   * @return bool|mixed
+   */
   function login($values = array()) {
     if (isset($values['GlobalSight_proxyhost'])) {
       $this->proxyhost = $values['GlobalSight_proxyhost'];
@@ -68,7 +75,8 @@ class TMGMTGlobalSightConnector {
       watchdog(
         'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
         '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/GlobalSight'),
-        '%err' => $err), WATCHDOG_ERROR);
+        '%err' => $err
+      ), WATCHDOG_ERROR);
       return FALSE;
     }
 
@@ -76,11 +84,7 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
-   * Sends 'getFileProfileInfoEx' API request and parses a list of available
-   * languages
-   *
-   * @param type $values
-   * @return type
+   * getLocales method sends 'getFileProfileInfoEx' API request and parses a list of available languages
    */
   function getLocales() {
     $locales = array();
@@ -107,6 +111,15 @@ class TMGMTGlobalSightConnector {
     return $locales;
   }
 
+  /**
+   * Method generates titles for GlobalSight by replacing unsupported characters with underlines and
+   * adding some MD5 hash trails in order to assure uniqueness of job titles.
+   *
+   * @param TMGMTJob $job
+   *   Loaded TMGMT Job object.
+   * @return string
+   *   GlobalSight job title.
+   */
   function generateJobTitle($job) {
     $hash = md5($this->base_url . $job->tjid . time());
 
@@ -123,6 +136,14 @@ class TMGMTGlobalSightConnector {
     return $post_title;
   }
 
+  /**
+   * Method generates XML document for GlobalSight based on TMGMTJob object.
+   *
+   * @param TMGMTJob $job
+   *   Loaded TMGMT Job object.
+   * @return string
+   *   XML document as per GlobalSight API specifications.
+   */
   function encodeXML($job) {
     $strings = tmgmt_flatten_data($job->getData());
 
@@ -143,9 +164,16 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
-   *  Function which encodes and sends translation job to GlobalSight
+   *  Send method encodes and sends translation job to GlobalSight service.
    *
-   *  Major rewrite of gs_create_translation_job()
+   * @param TMGMTJob $job
+   *   Loaded TMGMT Job object.
+   * @param $target_locale
+   *   GlobalSign locale code (e.g. en_US).
+   * @param $name
+   *   GlobalSight job title.
+   * @return array
+   *   Array of parameters sent with CreateJob API call.
    */
   function send($job, $target_locale, $name = FALSE) {
     if (!($access_token = $this->login())) {
@@ -181,11 +209,13 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
-   * 
-   * @param type $job_name
+   *
+   * @param string $job_name
+   *   GlobalSight job title.
    * @return mixed
    *  - FALSE : Ignore the status, move on...
    *  - "PERMANENT ERROR" : There is a permanent error at GS. Cancel the job.
+   *  - API response converted to the array.
    */
   function getStatus($job_name) {
     if (!($access_token = $this->login())) {
@@ -203,25 +233,34 @@ class TMGMTGlobalSightConnector {
       watchdog(
         'tmgmt_globalsight', "Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
-        '%err' => $err), WATCHDOG_ERROR);
+        '%err' => $err
+      ), WATCHDOG_ERROR);
       return 'PERMANENT ERROR';
     }
 
-    //print_r($result); exit();
     try {
       $xml = new SimpleXMLElement($result);
       return $this->xml2array($xml);
-    }
-    catch (Exception $err){
+    } catch (Exception $err) {
       watchdog(
         'tmgmt_globalsight', "Error parsing XML for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
-        '%err' => $err), WATCHDOG_ERROR);
+        '%err' => $err
+      ), WATCHDOG_ERROR);
       return 'PERMANENT ERROR';
     }
 
   }
 
+  /**
+   * Method cancel requests job deletion in GlobalSight.
+   *
+   * @param string $job_name
+   *   GlobalSight job title.
+   * @return mixed
+   *  - FALSE: on any API error
+   *  - API response in form of array
+   */
   function cancel($job_name) {
     if (!($access_token = $this->login())) {
       return FALSE;
@@ -229,7 +268,7 @@ class TMGMTGlobalSightConnector {
 
     $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
     $result = $this->webservice->call('cancelJob', $params);
-    
+
     if ($this->webservice->fault) {
       if (!($err = $this->webservice->getError())) {
         $err = 'No error details';
@@ -238,7 +277,8 @@ class TMGMTGlobalSightConnector {
       watchdog(
         'tmgmt_globalsight', "Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
-        '%err' => $err));
+        '%err' => $err
+      ));
       return FALSE;
     }
 
@@ -246,6 +286,13 @@ class TMGMTGlobalSightConnector {
     return $this->xml2array($xml);
   }
 
+  /**
+   * @param $job_name
+   *   Title of the GlobalSight job
+   * @return array|bool
+   *   - FALSE: if API request failed due to any reason
+   *   - API response in form of array
+   */
   function receive($job_name) {
 
     if (!($access_token = $this->login())) {
@@ -257,10 +304,8 @@ class TMGMTGlobalSightConnector {
     $xml = new SimpleXMLElement($result);
 
     $download_url_prefix = $xml->urlPrefix;
-    $target_locale = $xml->targetLocale;
 
     $result = $this->webservice->call("getJobExportFiles", $params);
-    //dsm($result);
     $xml = new SimpleXMLElement($result);
     $paths = $xml->paths;
 
@@ -271,19 +316,17 @@ class TMGMTGlobalSightConnector {
       $aContext = array(
         'http' => array(
           'proxy' => $this->proxyhost . ":" . $this->proxyport,
-          'request_fulluri' => true,
+          'request_fulluri' => TRUE,
         ),
       );
       $cxContext = stream_context_create($aContext);
 
       if ($this->proxyhost && $this->proxyport) {
-        $xml = file_get_contents($download_url_prefix . '/' . $path, False, $cxContext);
+        $xml = file_get_contents($download_url_prefix . '/' . $path, FALSE, $cxContext);
       }
       else {
         $xml = file_get_contents($download_url_prefix . '/' . $path);
       }
-
-     //  dsm($xml);
 
       $xmlObject = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOCDATA);
       foreach ($xmlObject->field as $field) {
@@ -298,6 +341,9 @@ class TMGMTGlobalSightConnector {
     return $results;
   }
 
+  /**
+   * Helper method translating GlobalSight status codes into integers.
+   */
   function code2status($code) {
     $a = array(
       0 => 'ARCHIVED', // internal status
@@ -311,23 +357,11 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
-   * function xml2array
-   *
-   * This function is part of the PHP manual.
-   *
-   * The PHP manual text and comments are covered by the Creative Commons
-   * Attribution 3.0 License, copyright (c) the PHP Documentation Group
-   *
-   * @author  k dot antczak at livedata dot pl
-   * @date    2011-04-22 06:08 UTC
-   * @link    http://www.php.net/manual/en/ref.simplexml.php#103617
-   * @license http://www.php.net/license/index.php#doc-lic
-   * @license http://creativecommons.org/licenses/by/3.0/
-   * @license CC-BY-3.0 <http://spdx.org/licenses/CC-BY-3.0>
+   * Helper method recursively converting xml documents to array.
    */
   function xml2array($xmlObject, $out = array()) {
     foreach ((array) $xmlObject as $index => $node) {
-      $out[$index] = ( is_object($node) ) ? $this->xml2array($node) : $node;
+      $out[$index] = (is_object($node)) ? $this->xml2array($node) : $node;
     }
 
     return $out;
@@ -367,5 +401,4 @@ class TMGMTGlobalSightConnector {
 
     return TRUE;
   }
-
 }
