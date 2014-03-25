@@ -9,7 +9,7 @@
  * @file
  * Provides Gengo translation plugin controller.
  */
-class TMGMTCMSwithTMSTranslatorUIController extends TMGMTDefaultTranslatorUIController {
+class TMGMTGlobalSightTranslatorUIController extends TMGMTDefaultTranslatorUIController {
 
   /**
    * Overrides TMGMTDefaultTranslatorUIController::pluginSettingsForm().

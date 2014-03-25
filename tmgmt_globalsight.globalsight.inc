@@ -36,22 +36,22 @@ class TMGMTGlobalSightConnector {
     $this->file_profile_id = $translator->getSetting('file_profile_id');
     $this->base_url = $GLOBALS['base_url'];
 
-    module_load_include('php', 'tmgmt_cmswithtms', 'lib/nusoap/nusoap');
-    //module_load_include('inc', 'tmgmt_cmswithtms', 'lib/cmswithtms.helpers');
-    //module_load_include('inc', 'tmgmt_cmswithtms', 'menu/cmswithtms.dashboard');
+    module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/nusoap');
+    //module_load_include('inc', 'tmgmt_globalsight', 'lib/GlobalSight.helpers');
+    //module_load_include('inc', 'tmgmt_globalsight', 'menu/GlobalSight.dashboard');
 
-    $this->webservice = new nusoap_client(GS_WSDL_URL, true);
+    $this->webservice = new nusoap_client(GLOBALSIGHT_WSDL_URL, true);
     $this->webservice->setEndpoint($this->endpoint);
   }
 
   // Question: do we really have to login before each request (see get_locales), maybe we should cache access token...
   function login($values = array()) {
-    if (isset($values['cmswithtms_proxyhost'])) {
-      $this->proxyhost = $values['cmswithtms_proxyhost'];
+    if (isset($values['GlobalSight_proxyhost'])) {
+      $this->proxyhost = $values['GlobalSight_proxyhost'];
     };
 
-    if (isset($values['cmswithtms_proxyport'])) {
-      $this->proxyhost = $values['cmswithtms_proxyport'];
+    if (isset($values['GlobalSight_proxyport'])) {
+      $this->proxyhost = $values['GlobalSight_proxyport'];
     };
 
     $this->webservice->setHTTPProxy($this->proxyhost, $this->proxyport);
@@ -66,8 +66,8 @@ class TMGMTGlobalSightConnector {
       }
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       watchdog(
-        'tmgmt_cmswithtms', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
-        '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/cmswithtms'),
+        'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
+        '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/GlobalSight'),
         '%err' => $err), WATCHDOG_ERROR);
       return FALSE;
     }
@@ -161,7 +161,7 @@ class TMGMTGlobalSightConnector {
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
-      'filePath' => 'cmswithtms.xml',
+      'filePath' => 'GlobalSight.xml',
       'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
@@ -171,7 +171,7 @@ class TMGMTGlobalSightConnector {
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
-      'filePaths' => 'cmswithtms.xml',
+      'filePaths' => 'GlobalSight.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );
@@ -201,7 +201,7 @@ class TMGMTGlobalSightConnector {
       }
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       watchdog(
-        'tmgmt_cmswithtms', "Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+        'tmgmt_globalsight', "Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
         '%err' => $err), WATCHDOG_ERROR);
       return 'PERMANENT ERROR';
@@ -229,7 +229,7 @@ class TMGMTGlobalSightConnector {
       }
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       watchdog(
-        'tmgmt_cmswithtms', "Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
+        'tmgmt_globalsight', "Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
         '%err' => $err));
       return FALSE;
@@ -338,7 +338,7 @@ class TMGMTGlobalSightConnector {
     // IMPORT_FAILED appears to be status when XML file is corrupt
     if ($status == 'IMPORT_FAILED') {
       watchdog(
-        'tmgmt_cmswithtms', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
+        'tmgmt_globalsight', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
       drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
       return FALSE;
     }
@@ -352,7 +352,7 @@ class TMGMTGlobalSightConnector {
 
         // Consolidate this messaging into an error handler and inject it as dependency
         watchdog(
-          'tmgmt_cmswithtms', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
+          'tmgmt_globalsight', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
         drupal_set_message(t('Error creating job at GlobalSight. Translation job canceled.'), 'error');
         return FALSE;
       }

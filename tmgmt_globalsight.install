@@ -3,8 +3,8 @@
 /**
  * Implements hook_schema().
  */
-function tmgmt_cmswithtms_schema() {
-  $schema['tmgmt_cmswithtms'] = array(
+function tmgmt_globalsight_schema() {
+  $schema['tmgmt_globalsight'] = array(
     'description' => 'A translation job represents a translation order that can be assigned to a translator.',
     'fields' => array(
       'tjid' => array(
@@ -36,9 +36,9 @@ function tmgmt_cmswithtms_schema() {
 }
 
 /**
- * Remove job_id status and profile ID fields from {tmgmt_cmswithtms} table.
+ * Remove job_id status and profile ID fields from {tmgmt_globalsight} table.
  */
-function tmgmt_cmswithtms_update_7100() {
-  db_drop_field('tmgmt_cmswithtms', 'job_id');
-  db_drop_field('tmgmt_cmswithtms', 'profile_id');
+function tmgmt_globalsight_update_7100() {
+  db_drop_field('tmgmt_globalsight', 'job_id');
+  db_drop_field('tmgmt_globalsight', 'profile_id');
 }

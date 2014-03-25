@@ -1,8 +1,0 @@
-name = CMSwithTMS Translator
-description = An OpenSource Translator using GlobalSight.
-package = Translation Management
-core = 7.x
-dependencies[] = tmgmt
-files[] = tmgmt_cmswithtms.plugin.inc
-files[] = tmgmt_cmswithtms.ui.inc
-files[] = tmgmt_cmswithtms.globalsight.inc

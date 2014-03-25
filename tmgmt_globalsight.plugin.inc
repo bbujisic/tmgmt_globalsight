@@ -1,6 +1,6 @@
 <?php
 
-class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPluginController {
+class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorPluginController {
 
   public function canTranslate(TMGMTTranslator $translator, TMGMTJob $job) {
 
@@ -45,7 +45,7 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
       if ($ok) {
 
         // Make sure that there are not previous records of the job
-        _tmgmt_cmswithtms_delete_job($job->tjid);
+        _tmgmt_globalsight_delete_job($job->tjid);
 
         $record = array(
           'tjid' => $job->tjid,
@@ -53,7 +53,7 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
           'status' => 1,
         );
         $job->submitted('The translation job has been submitted.');
-        drupal_write_record('tmgmt_cmswithtms', $record);
+        drupal_write_record('tmgmt_globalsight', $record);
       }
       else {
         // cancel the job
@@ -63,13 +63,13 @@ class TMGMTCMSwithTMSTranslatorPluginController extends TMGMTDefaultTranslatorPl
   }
 
   public function cancelTranslation(TMGMTJob $job) {
-    $job_name = db_query('SELECT job_name FROM {tmgmt_cmswithtms} WHERE tjid = :tjid', array(':tjid' => $job->tjid))->fetchField();
+    $job_name = db_query('SELECT job_name FROM {tmgmt_globalsight} WHERE tjid = :tjid', array(':tjid' => $job->tjid))->fetchField();
 
     $translator = $job->getTranslator();
     $gs = new TMGMTGlobalSightConnector($translator);
 
     if ($status = $gs->cancel($job_name)) {
-      _tmgmt_cmswithtms_archive_job($job->tjid);
+      _tmgmt_globalsight_archive_job($job->tjid);
       $job->cancelled('The translation job has successfully been canceled');
       return TRUE;
     }
