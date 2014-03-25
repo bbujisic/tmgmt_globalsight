@@ -206,13 +206,20 @@ class TMGMTGlobalSightConnector {
         '%err' => $err), WATCHDOG_ERROR);
       return 'PERMANENT ERROR';
     }
-    
-    // @TODO: Something wrong happened here. Debug.
-    // Two clicks on submit after some stalling resulted in bypassing webservice->fault
-    // http://globalme.dev/admin/reports/event/523
 
-    $xml = new SimpleXMLElement($result);
-    return $this->xml2array($xml);
+    //print_r($result); exit();
+    try {
+      $xml = new SimpleXMLElement($result);
+      return $this->xml2array($xml);
+    }
+    catch (Exception $err){
+      watchdog(
+        'tmgmt_globalsight', "Error parsing XML for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+        '!job_name' => $job_name,
+        '%err' => $err), WATCHDOG_ERROR);
+      return 'PERMANENT ERROR';
+    }
+
   }
 
   function cancel($job_name) {
@@ -253,7 +260,7 @@ class TMGMTGlobalSightConnector {
     $target_locale = $xml->targetLocale;
 
     $result = $this->webservice->call("getJobExportFiles", $params);
-    dsm($result);
+    //dsm($result);
     $xml = new SimpleXMLElement($result);
     $paths = $xml->paths;
 
@@ -276,7 +283,7 @@ class TMGMTGlobalSightConnector {
         $xml = file_get_contents($download_url_prefix . '/' . $path);
       }
 
-      dsm($xml);
+     //  dsm($xml);
 
       $xmlObject = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOCDATA);
       foreach ($xmlObject->field as $field) {
