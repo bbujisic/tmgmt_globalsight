@@ -60,7 +60,7 @@ function tmgmt_globalsight_ping($job, $record) {
  */
 function tmgmt_globalsight_tmgmt_translator_plugin_info() {
   return array(
-    'globalsight' => array(
+    'gs' => array(
       'label' => t('GlobalSight translator'),
       'description' => t('An open source translation management service.'),
       'plugin controller class' => 'TMGMTGlobalSightTranslatorPluginController',
