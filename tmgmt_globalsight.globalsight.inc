@@ -39,7 +39,7 @@ class TMGMTGlobalSightConnector {
     $this->file_profile_id = $translator->getSetting('file_profile_id');
     $this->base_url = $GLOBALS['base_url'];
 
-    module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/nusoap');
+    module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/lib/nusoap');
 
     $this->webservice = new nusoap_client(GLOBALSIGHT_WSDL_URL, TRUE);
     $this->webservice->setEndpoint($this->endpoint);

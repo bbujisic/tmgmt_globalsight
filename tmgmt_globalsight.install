@@ -1,6 +1,31 @@
 <?php
 
 /**
+ * Implements hook_requirements().
+ */
+function tmgmt_globalsight_requirements($phase) {
+
+  $requirements = array();
+  // Ensure translations don't break during installation.
+  $t = get_t();
+
+  // Report Drupal version
+  if ($phase == 'runtime') {
+
+    if (!file_exists(drupal_get_path('module', 'tmgmt_globalsight') . '/lib/nusoap/lib/nusoap.php')) {
+      $requirements['nusoap'] = array(
+        'title' => $t('Nusoap library'),
+        'description' => $t('Nusoap library was not installed. Please download it from !url. For more information, please refer to README.txt.', array('!url' => l('Sourceforge', 'http://sourceforge.net/projects/nusoap/'))),
+        'value' => $t('Not found!'),
+        'severity' => REQUIREMENT_ERROR,
+      );
+    }
+  }
+
+  return $requirements;
+}
+
+/**
  * Implements hook_schema().
  */
 function tmgmt_globalsight_schema() {
