@@ -48,30 +48,26 @@ class TMGMTGlobalSightConnector {
   /**
    * Login method sends access parameters to Globalsight and, upon success, receives access token.
    *
-   * @param array $values
-   *
    * @return bool|mixed
+   *  - FALSE: if login failed for any reason.
+   *  - Access Token: if login succeeded.
+   *
+   * @todo: Current process does authorization on each page request. Try saving access token in database and reusing it
+   *        in successive requests.
    */
-  function login($values = array()) {
-    if (isset($values['GlobalSight_proxyhost'])) {
-      $this->proxyhost = $values['GlobalSight_proxyhost'];
-    };
-
-    if (isset($values['GlobalSight_proxyport'])) {
-      $this->proxyhost = $values['GlobalSight_proxyport'];
-    };
+  function login() {
 
     $this->webservice->setHTTPProxy($this->proxyhost, $this->proxyport);
-
-    $params = array('p_username' => $this->username, 'p_password' => $this->password);
-
+    $params = array(
+      'p_username' => $this->username,
+      'p_password' => $this->password,
+    );
     $result = $this->webservice->call('login', $params);
 
     if ($this->webservice->fault) {
       if (!($err = $this->webservice->getError())) {
         $err = 'No error details';
       }
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor.
       watchdog(
         'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
         '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/GlobalSight'),
