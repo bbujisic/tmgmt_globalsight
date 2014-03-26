@@ -344,7 +344,7 @@ class TMGMTGlobalSightConnector {
    */
   function code2status($code) {
     $a = array(
-      0 => 'ARCHIVED', // internal status
+      0 => 'ARCHIVED',
       1 => 'DISPATCHED',
       2 => 'EXPORTED',
       3 => 'LOCALIZED',
@@ -365,37 +365,53 @@ class TMGMTGlobalSightConnector {
     return $out;
   }
 
+  /**
+   * Method checks if job upload to GlobalSight succeeded.
+   *
+   * @param $jobName
+   *   Title of the GlobalSight job
+   *
+   * @return bool
+   *   TRUE: if job import succeeded
+   *   FALSE: if job import failed
+   */
   function uploadErrorHandler($jobName) {
     $status = $this->getStatus($jobName);
     $status = $status['status'];
 
-    // LEVERAGING appears to be normal status right after successfull upload
-    if ($status == 'LEVERAGING') {
-      return TRUE;
-    }
+    // LEVERAGING appears to be normal status right after successful upload
 
-    // IMPORT_FAILED appears to be status when XML file is corrupt
-    if ($status == 'IMPORT_FAILED') {
-      watchdog(
-        'tmgmt_globalsight', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
-      drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
-      return FALSE;
-    }
+    switch ($status) {
 
-    if ($status == 'UPLOADING') {
-      // Wait for 5 seconds and check status again
-      sleep(5);
-      $revised_status = $this->getStatus($jobName);
-      $revised_status = $revised_status['status'];
-      if ($revised_status == 'UPLOADING') {
+      case 'LEVERAGING':
+        return TRUE;
+        break;
 
-        // Consolidate this messaging into an error handler and inject it as dependency
+      // IMPORT_FAILED appears to be status when XML file is corrupt.
+      case 'IMPORT_FAILED':
         watchdog(
-          'tmgmt_globalsight', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
-        drupal_set_message(t('Error creating job at GlobalSight. Translation job canceled.'), 'error');
+          'tmgmt_globalsight', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
+        drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
         return FALSE;
-      }
-    }
+        break;
+
+      // UPLOADING can be normal message if translation upload did not finish, but, if unchanged for a period of time,
+      // it can also be interpreted as "upload failed" message. So we need to have ugly time testing here.
+      case 'UPLOADING':
+        // Wait for 5 seconds and check status again.
+        sleep(5);
+        $revised_status = $this->getStatus($jobName);
+        $revised_status = $revised_status['status'];
+        if ($revised_status == 'UPLOADING') {
+
+          // Consolidate this messaging into an error handler and inject it as dependency
+          watchdog(
+            'tmgmt_globalsight', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
+          drupal_set_message(t('Error creating job at GlobalSight. Translation job canceled.'), 'error');
+          return FALSE;
+        }
+        break;
+    };
 
     return TRUE;
   }
