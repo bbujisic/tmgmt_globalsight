@@ -26,7 +26,7 @@ function tmgmt_globalsight_cron() {
 
 /**
  * Retrieves job data from GS server and, if status is "Exported" or "Localized"
- * recieves translation and adds translated data
+ * recieves translation and adds translated data.
  *
  * @param $job
  *   Loaded TMGMT Job object.
@@ -39,7 +39,6 @@ function tmgmt_globalsight_ping($job, $record) {
   $gs = new TMGMTGlobalSightConnector($job->getTranslator());
 
   $status = $gs->getStatus($record['job_name']);
-  //dsm($status);
 
   if ($status === "PERMANENT ERROR") {
     // Update our little mapping table -- archive job
@@ -86,7 +85,7 @@ function tmgmt_globalsight_tmgmt_translator_plugin_info() {
 }
 
 function _tmgmt_globalsight_delete_job($tjid) {
-  // Delete previous jobs (if any)
+  // Delete previous jobs (if any).
   $num_deleted = db_delete('tmgmt_globalsight')
     ->condition('tjid', $tjid)
     ->execute();

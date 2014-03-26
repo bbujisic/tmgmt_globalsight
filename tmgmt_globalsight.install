@@ -36,7 +36,7 @@ function tmgmt_globalsight_schema() {
 }
 
 /**
- * Remove job_id status and profile ID fields from {tmgmt_globalsight} table.
+ * Removes job_id status and profile ID fields from {tmgmt_globalsight} table.
  */
 function tmgmt_globalsight_update_7100() {
   db_drop_field('tmgmt_globalsight', 'job_id');

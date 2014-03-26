@@ -13,7 +13,7 @@
  */
 class TMGMTGlobalSightConnector {
 
-  // Settings
+
   public $base_url = '';
   private $username = '';
   private $password = '';
@@ -21,7 +21,7 @@ class TMGMTGlobalSightConnector {
   private $proxyhost = FALSE; // ?
   private $proxyport = FALSE; // ?
   private $file_profile_id = ''; // ?
-  // Objects
+
   private $webservice;
 
   /**
@@ -71,7 +71,7 @@ class TMGMTGlobalSightConnector {
       if (!($err = $this->webservice->getError())) {
         $err = 'No error details';
       }
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
+      // I do not like watchdog here! Let's try and create an error handler class in any future refactor.
       watchdog(
         'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
         '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/GlobalSight'),
@@ -84,7 +84,7 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
-   * getLocales method sends 'getFileProfileInfoEx' API request and parses a list of available languages
+   * getLocales method sends 'getFileProfileInfoEx' API request and parses a list of available languages.
    */
   function getLocales() {
     $locales = array();
@@ -287,6 +287,8 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
+   * This method downloads translations for a given GlobalSight job name.
+   *
    * @param $job_name
    *   Title of the GlobalSight job
    * @return array|bool
