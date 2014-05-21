@@ -308,31 +308,36 @@ class TMGMTGlobalSightConnector {
     $paths = $xml->paths;
 
     $results = array();
-    foreach ($paths as $path) {
-      $path = trim((string) $path);
 
+    $http_options = array();
+
+    // Create stream context.
+    // @todo: Test this...
+    if ($this->proxyhost && $this->proxyport) {
       $aContext = array(
         'http' => array(
           'proxy' => $this->proxyhost . ":" . $this->proxyport,
           'request_fulluri' => TRUE,
         ),
       );
-      $cxContext = stream_context_create($aContext);
+      $http_options['context'] = stream_context_create($aContext);
+    }
 
-      if ($this->proxyhost && $this->proxyport) {
-        $xml = file_get_contents($download_url_prefix . '/' . $path, FALSE, $cxContext);
-      }
-      else {
-        $xml = file_get_contents($download_url_prefix . '/' . $path);
-      }
+    foreach ($paths as $path) {
+      $path = trim((string) $path);
 
-      $xmlObject = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOCDATA);
-      foreach ($xmlObject->field as $field) {
-        $value = (string) $field->value;
-        $key = (string) $field->name;
-        $results[$key] = array(
-          '#text' => $value,
-        );
+      $result = drupal_http_request($download_url_prefix . '/' . $path, $http_options);
+
+      // @todo: Find a better plan for contingency if result code is not 200
+      if ($result->code == 200) {
+        $xmlObject = simplexml_load_string($result->data, 'SimpleXMLElement', LIBXML_NOCDATA);
+        foreach ($xmlObject->field as $field) {
+          $value = (string) $field->value;
+          $key = (string) $field->name;
+          $results[$key] = array(
+            '#text' => $value,
+          );
+        }
       }
     }
 

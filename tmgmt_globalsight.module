@@ -49,7 +49,6 @@ function tmgmt_globalsight_ping($job, $record) {
 
   // Skip execution if GlobalSight status hasn't changed
   if ($status['status'] == $gs->code2status($record['status'])) {
-    dsm('no new changes');
     return;
   }
 
