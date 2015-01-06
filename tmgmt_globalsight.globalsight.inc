@@ -147,7 +147,7 @@ class TMGMTGlobalSightConnector {
     $xml .= "<fields id='$job->tjid'>";
 
     foreach ($strings as $key => $string) {
-      if ($string['#translate']) {
+      if (isset($string['#translate'])) {
         $xml .= "<field>";
         $xml .= "<name>$key</name>";
         $xml .= "<value><![CDATA[" . $string['#text'] . "]]></value>";
@@ -189,7 +189,9 @@ class TMGMTGlobalSightConnector {
       'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
+    dsm($params);
     $response = $this->webservice->call('uploadFile', $params);
+    dsm($response);
 
     $params = array(
       'accessToken' => $access_token,
@@ -199,7 +201,9 @@ class TMGMTGlobalSightConnector {
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );
+    dsm($params);
     $response = $this->webservice->call('createJob', $params);
+    dsm($response);
 
     return $params;
   }

@@ -7,7 +7,101 @@ define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmg
  * Implements hook_cron().
  */
 function tmgmt_globalsight_cron() {
+  // Skip if disabled.
+  if (variable_get('tmgmt_globalsight_download_on_cron', 1) != 1) {
+    return;
+  }
+  tmgmt_globalsight_get_all();
+}
 
+/**
+ * Implements hook_menu().
+ */
+function tmgmt_globalsight_menu() {
+  $items['admin/config/regional/gs'] = array(
+    'title' => 'TMGMT GlobalSight settings',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tmgmt_globalsight_admin_form'),
+    'file' => 'inc/tmgmt_globalsight.admin.inc',
+    'access arguments' => array('access administration pages'),
+  );
+
+  return $items;
+}
+
+
+/**
+ * Implements hook_tmgmt_ui_job_checkout_before_alter().
+ * If there are multiple languages per checkout -- try to merge them into one GS job.
+ *
+ * @param $redirects
+ * @param $jobs
+ */
+function tmgmt_globalsight_tmgmt_ui_job_checkout_before_alter(&$redirects, &$jobs) {
+
+  // I do not want to intervene if there will be a single job.
+  if (count($jobs) < 2) {
+    return;
+  }
+  foreach ($jobs as $key => $job) {
+    if ($key > 0) {
+      $job->translator = 'gs';
+      $job->status = 1;
+      $job->save();
+      if ($job->isTranslatable()) {
+        $jobs[0]->settings['associated_jobs'][$job->tjid] = $job->target_language;
+      } else {
+        $params = array(
+          '@url' => '/admin/tmgmt/jobs/' . $job->tjid,
+          '@tjid' => $job->tjid,
+        );
+        drupal_set_message(t('Job <a href="@url">@tjid</a> is not translatable. It will be skipped.', $params), 'warning');
+      }
+    }
+  }
+  $jobs[0]->save();
+
+  $redirects[] = 'admin/tmgmt/jobs/' . $jobs[0]->tjid;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function tmgmt_globalsight_form_alter(&$form, &$form_state, $form_id) {
+
+  if ($form_id != 'tmgmt_job_form') {
+    return;
+  }
+
+  // Make sure there -are- associated jobs before we start tempering with the form
+  if (!isset($form_state['tmgmt_job']->settings['associated_jobs']) || count($form_state['tmgmt_job']->settings['associated_jobs']) == 0) {
+    return;
+  }
+
+  // Load available languages and make nice list of associated jobs
+  $available = tmgmt_available_languages();
+  $targets = array($available[$form_state['tmgmt_job']->target_language]);
+  foreach ($form_state['tmgmt_job']->settings['associated_jobs'] as $language) {
+    $targets[] = $available[$language];
+  }
+
+  // Language selector will be disabled and hidden because there will be multiple languages
+  $form['info']['target_language']['#disabled'] = true;
+  $form['info']['target_language']['#title'] = t('Target languages');
+  $form['info']['target_language']['#field_prefix'] = '<div class="element-invisible element-hidden">';
+  $form['info']['target_language']['#field_suffix'] = '</div>' . implode('<br />', $targets);
+
+  // Set proper title of the page
+  drupal_set_title(t('@title (@source to @target)', array(
+    '@title' => $form_state['tmgmt_job']->label(),
+    '@source' => $available[$form_state['tmgmt_job']->source_language],
+    '@target' => implode(', ', $targets),
+  )));
+}
+
+
+function tmgmt_globalsight_get_all() {
   // Retrieve the list of all opened jobs
   $result = db_select('tmgmt_globalsight', 't')
     ->fields('t')
@@ -23,6 +117,7 @@ function tmgmt_globalsight_cron() {
     tmgmt_globalsight_ping($job, $record);
   }
 }
+
 
 /**
  * Retrieves job data from GS server and, if status is "Exported" or "Localized"
@@ -44,7 +139,7 @@ function tmgmt_globalsight_ping($job, $record) {
     // Update our little mapping table -- archive job
     $record['status'] = 0;
     drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
-    $job->cancelled('Translation job was cancelled due to unrecoverable error.');
+    $job->aborted('Translation job was cancelled due to unrecoverable error.');
   }
 
   // Skip execution if GlobalSight status hasn't changed

@@ -56,10 +56,20 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
 
     // Determine target language.
     $maps = $this->getRemoteLanguagesMappings($translator);
-    $target_locale = $maps[$job->target_language];
+
+
+    $target_locales[] = $maps[$job->target_language];
+
+    // If translation will happen in bulk, add associated languages.
+    if(isset($job->settings['associated_jobs'])) {
+      foreach ($job->settings['associated_jobs'] as $language) {
+        $target_locales[] = $maps[$language];
+      }
+    }
+
 
     // Send translation job to GlobalSight.
-    if ($result = $gs->send($job, $target_locale)) {
+    if ($result = $gs->send($job, implode(',', $target_locales))) {
       // Okay we managed to send, but we are not sure if GS received translations. Check job status.
       $ok = $gs->uploadErrorHandler($result['jobName']);
       if ($ok) {
@@ -77,7 +87,7 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
       }
       else {
         // Cancel the job.
-        $job->cancelled('Translation job was cancelled due to unrecoverable error.');
+        $job->aborted('Translation job was aborted due to unrecoverable error.');
       }
     }
   }
