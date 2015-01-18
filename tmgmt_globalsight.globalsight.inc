@@ -330,15 +330,21 @@ class TMGMTGlobalSightConnector {
     foreach ($paths as $path) {
       $path = trim((string) $path);
 
+
+      // We are going to presume that path /globalsight/cxedocs/Gcomp/fr_FR/webservice/226/GlobalSight.xml
+      // is going to give us enough information to recognize the language, in this case fr_FR. The language
+      // identifier will be the key in the returned array.
+      $languageCode = trim(explode('/', $path)[0]);
+
       $result = drupal_http_request($download_url_prefix . '/' . $path, $http_options);
 
       // @todo: Find a better plan for contingency if result code is not 200
-      if ($result->code == 200) {
+      if ($result->code == 200 && $languageCode) {
         $xmlObject = simplexml_load_string($result->data, 'SimpleXMLElement', LIBXML_NOCDATA);
         foreach ($xmlObject->field as $field) {
           $value = (string) $field->value;
           $key = (string) $field->name;
-          $results[$key] = array(
+          $results[$languageCode][$key] = array(
             '#text' => $value,
           );
         }

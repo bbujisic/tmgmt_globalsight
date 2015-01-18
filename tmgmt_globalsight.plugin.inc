@@ -49,6 +49,12 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
    * Overrides TMGMTTranslatorPluginControllerInterface::requestTranslation().
    */
   public function requestTranslation(TMGMTJob $job) {
+    // Do not send children jobs to translation.
+    if(isset($job->settings['child_job']) && $job->settings['child_job']) {
+      return;
+    }
+
+
     $translator = $job->getTranslator();
 
     // Instantiate GlobalSightConnector object.

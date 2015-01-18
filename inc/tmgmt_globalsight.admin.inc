@@ -30,7 +30,7 @@ function tmgmt_globalsight_admin_form() {
 }
 
 function tmgmt_globalsight_admin_form_submit(&$form, &$form_state) {
-  dsm($form_state);
+  //dsm($form_state);
   switch ($form_state['values']['op']) {
 
     // Handles settings submission.
