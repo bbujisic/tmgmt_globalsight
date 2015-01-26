@@ -54,7 +54,6 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
       return;
     }
 
-
     $translator = $job->getTranslator();
 
     // Instantiate GlobalSightConnector object.

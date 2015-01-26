@@ -45,20 +45,32 @@ function tmgmt_globalsight_tmgmt_ui_job_checkout_before_alter(&$redirects, &$job
     return;
   }
   foreach ($jobs as $key => $job) {
+    // All jobs but the first one will be "children jobs"
     if ($key > 0) {
       $job->translator = 'gs';
-      $job->status = 1;
       if ($job->isTranslatable()) {
+        // Child job is disabled, so that it won't even show up in the list of jobs to be translated.
+        $job->status = 0;
         // Add the job to the list of associated jobs in parent job
         $jobs[0]->settings['associated_jobs'][$job->tjid] = $job->target_language;
         // Flag this job as a child job (cannot be translated individually)
         $job->settings['child_job'] = true;
+        $job->label = $job->label . ' (GlobalSight child)';
+
+        $params = array(
+          '@url' => '/admin/tmgmt/jobs/' . $jobs[0]->tjid,
+          '@tjid' => $jobs[0]->tjid,
+        );
+
+        $job->addMessage(t('This job was sent to GlobalSight as part of job <a href="@url">@tjid</a>. It cannot be translated individually.', $params));
       } else {
+        // The child job is not translatable.
         $params = array(
           '@url' => '/admin/tmgmt/jobs/' . $job->tjid,
           '@tjid' => $job->tjid,
         );
-        drupal_set_message(t('Job <a href="@url">@tjid</a> is not translatable. It will be skipped.', $params), 'warning');
+        $message = t('Job <a href="@url">@tjid</a> is not translatable. It will be skipped.', $params);
+        $jobs[0]->addMessage($message);
       }
       $job->save();
     }
@@ -111,14 +123,19 @@ function tmgmt_globalsight_get_all() {
     ->condition('status', 0, '>')
     ->execute();
 
+  $counter = 0;
   // Loop through jobs and check for translations
   while ($record = $result->fetchAssoc()) {
     $job = tmgmt_job_load($record['tjid']);
     if (!$job) {
       continue;
     }
-    tmgmt_globalsight_ping($job, $record);
+    if (tmgmt_globalsight_ping($job, $record)) {
+      $counter++;
+    };
   }
+
+  drupal_set_message(t('@count translation jobs received.', array('@count'=>$counter)), 'status');
 }
 
 
@@ -133,6 +150,7 @@ function tmgmt_globalsight_get_all() {
  */
 function tmgmt_globalsight_ping($job, $record) {
 
+
   $translator = $job->getTranslator();
 
   // Initialize GlobalSight
@@ -145,11 +163,12 @@ function tmgmt_globalsight_ping($job, $record) {
     $record['status'] = 0;
     drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
     $job->aborted('Translation job was cancelled due to unrecoverable error.');
+    return false;
   }
 
   // Skip execution if GlobalSight status hasn't changed
   if ($status['status'] == $gs->code2status($record['status'])) {
-    return;
+    return false;
   }
 
   // So we have translations now!
@@ -164,17 +183,12 @@ function tmgmt_globalsight_ping($job, $record) {
     //dsm($translation);return;
 
     // The translation "might" contain records for multiple jobs.
-//    dsm(array(
-//      'job' => $job,
-//      'map' => $map
-//    ));
     if (isset($job->settings['associated_jobs'])) {
       foreach ($job->settings['associated_jobs'] as $associated_tjid => $associated_lang) {
         $gs_lang = $map[$associated_lang];
         if (isset($translation[$gs_lang])) {
           $associated_job = tmgmt_job_load($associated_tjid);
           $associated_job->setState(TMGMT_JOB_STATE_ACTIVE);
-
 
 
           // We sent tjiids of original job as keys to Globalsight. Now we need to convert these (wrong) tjiids into
@@ -196,24 +210,21 @@ function tmgmt_globalsight_ping($job, $record) {
 //          $associated_job->finished();
 //          $associated_job->save();
 
-          $job->addMessage(t('Translation to @language finished.', array('@language'=> $associated_lang)));
+          $job->addMessage(t('Translation to @language finished.', array('@language' => $associated_lang)));
 
-        }
-        else {
+        } else {
           // We still do not have translation!
         }
       }
     }
 
-
-    // @todo: How to reduce error margin with these "children" jobs?
-    //dsm($translation);
-    //return;
     // Update translations per each job item
     $job->addTranslatedData(tmgmt_unflatten_data($translation[$map[$job->target_language]]));
+
     // Update our little mapping table -- archive job
     $record['status'] = 0;
-    //drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
+    drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
+    return true;
   }
 }
 
