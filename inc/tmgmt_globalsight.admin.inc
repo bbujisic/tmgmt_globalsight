@@ -21,6 +21,13 @@ function tmgmt_globalsight_admin_form() {
     '#description' => t('Enabling this allows download of new translations during cron jobs.'),
   );
 
+  $form['tmgmt_globalsight_localize_links'] = array(
+    '#type' => 'checkbox',
+    '#default_value' => variable_get('tmgmt_globalsight_localize_links', 0),
+    '#title' => t('Localize links'),
+    '#description' => t('Enable in order to allow replacement of hard coded localization paths (e.g. en/about-us to de/about-us).'),
+  );
+
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Submit'),
@@ -36,6 +43,7 @@ function tmgmt_globalsight_admin_form_submit(&$form, &$form_state) {
     // Handles settings submission.
     case $form_state['values']['submit']:
       variable_set('tmgmt_globalsight_download_on_cron', $form_state['values']['tmgmt_globalsight_download_on_cron']);
+      variable_set('tmgmt_globalsight_localize_links', $form_state['values']['tmgmt_globalsight_localize_links']);
       break;
 
     // Handles download button.

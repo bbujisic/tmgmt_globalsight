@@ -27,9 +27,61 @@ function tmgmt_globalsight_menu() {
     'access arguments' => array('access administration pages'),
   );
 
+  $items['gst'] = array(
+    'title' => 'TMGMT GlobalSight test',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'tmgmt_globalsight_test',
+    'access arguments' => array('access administration pages'),
+  );
+
   return $items;
 }
 
+
+function tmgmt_globalsight_test() {
+  $sourceLanguage = 'fr';
+  $targetLanguage = 'de';
+  $string = '
+
+<h2>Create cross-platform apps with the Intel® XDK</h2>
+
+<p>Develop, emulate, test-on-device and build cross-platform apps.</p>
+
+<p><a href="http://xdk.intel.com">Free download ›</a><br>
+	<a href="/en-us/android/tools">All Android tools ›</a></p>
+
+
+  ';
+
+$string = tmgmt_globalsight_update_links($sourceLanguage, $targetLanguage, $string);
+
+
+  dsm($string);
+
+  return 'bla';
+}
+
+
+function tmgmt_globalsight_update_links($sourceLanguage, $targetLanguage, $string) {
+  preg_match_all('#<a\s.*?(?:href=[\'"](.*?)[\'"]).*?>#is', $string, $matches);
+  $links = $matches[1];
+
+
+  $languages = language_list();//tmgmt_available_languages();
+
+  if (!($sourcePrefix = $languages[$sourceLanguage]->prefix) || !($targetPrefix = $languages[$targetLanguage]->prefix)) {
+    return false;
+  }
+
+
+  foreach ($links as $link) {
+    if (strpos($link, $sourceLanguage) !== FALSE) {
+      $linkReplacement = str_replace($sourcePrefix, $targetPrefix, $link);
+      $string = str_replace($link, $linkReplacement, $string);
+    }
+  }
+  return $string;
+}
 
 /**
  * Implements hook_tmgmt_ui_job_checkout_before_alter().
@@ -135,7 +187,7 @@ function tmgmt_globalsight_get_all() {
     };
   }
 
-  drupal_set_message(t('@count translation jobs received.', array('@count'=>$counter)), 'status');
+  drupal_set_message(t('@count translation jobs received.', array('@count' => $counter)), 'status');
 }
 
 
@@ -147,6 +199,7 @@ function tmgmt_globalsight_get_all() {
  *   Loaded TMGMT Job object.
  * @param $record
  *   {tmgmt_globalsight} record connecting TMGMT and GS jobs
+ * @return bool
  */
 function tmgmt_globalsight_ping($job, $record) {
 
@@ -180,7 +233,17 @@ function tmgmt_globalsight_ping($job, $record) {
     // Send API request to GS
     $translation = $gs->receive($record['job_name']);
 
-    //dsm($translation);return;
+    // Run link localization (if enabled)
+    if (variable_get('tmgmt_globalsight_localize_links', 0) == 1) {
+      foreach($translation as $gs_lang => $values) {
+        $targetLanguage = array_search($gs_lang, $map);
+        foreach ($values as $field => $value) {
+          foreach ($value as $key => $string) {
+            $translation[$gs_lang][$field][$key] = tmgmt_globalsight_update_links($job->source_language, $targetLanguage, $string);
+          }
+        }
+      }
+    }
 
     // The translation "might" contain records for multiple jobs.
     if (isset($job->settings['associated_jobs'])) {
@@ -205,6 +268,8 @@ function tmgmt_globalsight_ping($job, $record) {
             $translated_data[$tjiids[$i]] = $data;
             $i++;
           };
+
+          //dsm($translated_data); return;
 
           $associated_job->addTranslatedData($translated_data);
 //          $associated_job->finished();
