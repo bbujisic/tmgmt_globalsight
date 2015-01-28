@@ -22,7 +22,7 @@ class TMGMTGlobalSightConnector {
   private $proxyport = FALSE; // ?
   public $file_profile_id = ''; // ?
 
-  private $webservice;
+  public $webservice;
 
   /**
    * Construct the connector to GlobalSight service.

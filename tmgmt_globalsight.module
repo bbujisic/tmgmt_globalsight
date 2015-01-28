@@ -85,13 +85,15 @@ function tmgmt_globalsight_test() {
   }
 
   // Try to login
-  if($access_token = $connector->login()) {
+  $access_token = $connector->login();
+  if($access_token) {
     drupal_set_message('[success] Login successful. Returned access token is:' . $access_token);
   }
   else {
     drupal_set_message('<b>[error] Login failed. Cannot continue.</b>');
     return "error";
   }
+  dsm($connector->webservice);
 
 
   // Get list of locales
