@@ -1,7 +1,8 @@
 <?php
 
 global $base_url;
-define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
+//define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
+define('GLOBALSIGHT_WSDL_URL', 'file://' . dirname(__FILE__) . '/AmbassadorWebService.xml');
 
 /**
  * Implements hook_cron().
