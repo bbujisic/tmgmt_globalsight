@@ -27,7 +27,7 @@ function tmgmt_globalsight_menu() {
     'access arguments' => array('access administration pages'),
   );
 
-  $items['gst'] = array(
+  $items['admin/tmgmt/gs/test'] = array(
     'title' => 'TMGMT GlobalSight test',
     'type' => MENU_NORMAL_ITEM,
     'page callback' => 'tmgmt_globalsight_test',
@@ -39,26 +39,72 @@ function tmgmt_globalsight_menu() {
 
 
 function tmgmt_globalsight_test() {
-  $sourceLanguage = 'fr';
-  $targetLanguage = 'de';
-  $string = '
+  // Initiate Drupal side settings
+  $translator = tmgmt_translator_load('gs');
+  if ($translator->plugin == 'gs') {
+    drupal_set_message('[success] Translator loaded');
+  }
+  else {
+    return 'error';
+  }
+  $connector = new TMGMTGlobalSightConnector($translator);
+  if($connector) {
+    drupal_set_message('[success] Connector loaded');
+  }
+  else {
+    return 'error';
+  }
+  drupal_set_message('Base url: ' . $connector->base_url);
+  drupal_set_message('Endpoint: ' . $connector->endpoint);
+  drupal_set_message('File profile ID: ' . $connector->file_profile_id);
 
-<h2>Create cross-platform apps with the Intel® XDK</h2>
+  //Ping endpoint
+  $tB = microtime(true);
+  $fP = fSockOpen($connector->endpoint);
+  if (!$fP) {
+      drupal_set_message('<b>[error] Ping to endpoint using fSockOpen() unsuccessful!</b>');
+  }
+  else {
+    $tA = microtime(true);
+    $time = round((($tA - $tB) * 1000), 0)." ms";
+    drupal_set_message('[success] Ping to endpoint in ' . $time);
+  }
 
-<p>Develop, emulate, test-on-device and build cross-platform apps.</p>
+  // Try cURL to endpoint
+  $ch = curl_init($connector->endpoint);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+  curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  $data = curl_exec($ch);
+  $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  if($httpcode>=200 && $httpcode<300){
+    drupal_set_message('[success] cURL to endpoint successful. Server returned: <br><code><pre>'.$data.'</pre></code>');
+  } else {
+    drupal_set_message('<b>[error] cURL to endpoint using fSockOpen() unsuccessful! HTTP code: ' . $httpcode . '</b>');
+  }
 
-<p><a href="http://xdk.intel.com">Free download ›</a><br>
-	<a href="/en-us/android/tools">All Android tools ›</a></p>
+  // Try to login
+  if($access_token = $connector->login()) {
+    drupal_set_message('[success] Login successful. Returned access token is:' . $access_token);
+  }
+  else {
+    drupal_set_message('<b>[error] Login failed. Cannot continue.</b>');
+    return "error";
+  }
 
 
-  ';
+  // Get list of locales
+  $locs = $connector->getLocales();
+  if (is_array($locs)) {
+      drupal_set_message('Supported source languages: ' . implode(' , ', $locs['source']));
+      drupal_set_message('Supported target languages: ' . implode(' , ', $locs['target']));
+  }
+  else {
+    drupal_set_message('<b>[error] Could not retrieve supported languages.</b>');
+  }
 
-$string = tmgmt_globalsight_update_links($sourceLanguage, $targetLanguage, $string);
-
-
-  dsm($string);
-
-  return 'bla';
+  return 'test';
 }
 
 
@@ -235,7 +281,7 @@ function tmgmt_globalsight_ping($job, $record) {
 
     // Run link localization (if enabled)
     if (variable_get('tmgmt_globalsight_localize_links', 0) == 1) {
-      foreach($translation as $gs_lang => $values) {
+      foreach ($translation as $gs_lang => $values) {
         $targetLanguage = array_search($gs_lang, $map);
         foreach ($values as $field => $value) {
           foreach ($value as $key => $string) {

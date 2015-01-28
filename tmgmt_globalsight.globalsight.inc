@@ -17,10 +17,10 @@ class TMGMTGlobalSightConnector {
   public $base_url = '';
   private $username = '';
   private $password = '';
-  private $endpoint = '';
+  public $endpoint = '';
   private $proxyhost = FALSE; // ?
   private $proxyport = FALSE; // ?
-  private $file_profile_id = ''; // ?
+  public $file_profile_id = ''; // ?
 
   private $webservice;
 
