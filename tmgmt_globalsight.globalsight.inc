@@ -149,7 +149,7 @@ class TMGMTGlobalSightConnector {
     $xml .= "<fields id='$job->tjid'>";
 
     foreach ($strings as $key => $string) {
-      if (isset($string['#translate'])) {
+      if ((isset($string['#translate']) && $string['#translate']) || strpos($key, 'node_title') !== FALSE) {
         $xml .= "<field>";
         $xml .= "<name>$key</name>";
         $xml .= "<value><![CDATA[" . $string['#text'] . "]]></value>";
