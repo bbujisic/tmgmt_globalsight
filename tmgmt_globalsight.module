@@ -44,15 +44,13 @@ function tmgmt_globalsight_test() {
   $translator = tmgmt_translator_load('gs');
   if ($translator->plugin == 'gs') {
     drupal_set_message('[success] Translator loaded');
-  }
-  else {
+  } else {
     return 'error';
   }
   $connector = new TMGMTGlobalSightConnector($translator);
-  if($connector) {
+  if ($connector) {
     drupal_set_message('[success] Connector loaded');
-  }
-  else {
+  } else {
     return 'error';
   }
   drupal_set_message('Base url: ' . $connector->base_url);
@@ -63,11 +61,10 @@ function tmgmt_globalsight_test() {
   $tB = microtime(true);
   $fP = fSockOpen($connector->endpoint);
   if (!$fP) {
-      drupal_set_message('<b>[error] Ping to endpoint using fSockOpen() unsuccessful!</b>');
-  }
-  else {
+    drupal_set_message('<b>[error] Ping to endpoint using fSockOpen() unsuccessful!</b>');
+  } else {
     $tA = microtime(true);
-    $time = round((($tA - $tB) * 1000), 0)." ms";
+    $time = round((($tA - $tB) * 1000), 0) . " ms";
     drupal_set_message('[success] Ping to endpoint in ' . $time);
   }
 
@@ -79,8 +76,8 @@ function tmgmt_globalsight_test() {
   $data = curl_exec($ch);
   $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
-  if($httpcode>=200 && $httpcode<300){
-    drupal_set_message('[success] cURL to endpoint successful. Server returned: <br><code><pre>'.$data.'</pre></code>');
+  if ($httpcode >= 200 && $httpcode < 300) {
+    drupal_set_message('[success] cURL to endpoint successful. Server returned: <br><code><pre>' . $data . '</pre></code>');
   } else {
     drupal_set_message('<b>[error] cURL to endpoint using fSockOpen() unsuccessful! HTTP code: ' . $httpcode . '</b>');
   }
@@ -88,10 +85,9 @@ function tmgmt_globalsight_test() {
   // Try to login
   $access_token = $connector->login();
   dsm($connector->webservice);
-  if($access_token) {
+  if ($access_token) {
     drupal_set_message('[success] Login successful. Returned access token is:' . $access_token);
-  }
-else {
+  } else {
     drupal_set_message('<b>[error] Login failed. Cannot continue.</b>');
     return $connector->webservice->debug_str;
   }
@@ -100,10 +96,9 @@ else {
   // Get list of locales
   $locs = $connector->getLocales();
   if (is_array($locs)) {
-      drupal_set_message('Supported source languages: ' . implode(' , ', $locs['source']));
-      drupal_set_message('Supported target languages: ' . implode(' , ', $locs['target']));
-  }
-  else {
+    drupal_set_message('Supported source languages: ' . implode(' , ', $locs['source']));
+    drupal_set_message('Supported target languages: ' . implode(' , ', $locs['target']));
+  } else {
     drupal_set_message('<b>[error] Could not retrieve supported languages.</b>');
   }
 
@@ -224,7 +219,7 @@ function tmgmt_globalsight_get_all() {
     ->condition('status', 0, '>')
     ->execute();
 
-  $counter = 0;
+  $links = array();
   // Loop through jobs and check for translations
   while ($record = $result->fetchAssoc()) {
     $job = tmgmt_job_load($record['tjid']);
@@ -232,11 +227,13 @@ function tmgmt_globalsight_get_all() {
       continue;
     }
     if (tmgmt_globalsight_ping($job, $record)) {
-      $counter++;
+      $links[] = l('Job ' . $job->tjid . ': ' . $job->label, 'admin/tmgmt/jobs/' . $job->tjid);
     };
   }
+  $output = format_plural(count($links), '1 translation job received.', '@count translation jobs received.');
+  $output .= theme('item_list', array('items' => $links));
 
-  drupal_set_message(t('@count translation jobs received.', array('@count' => $counter)), 'status');
+  drupal_set_message($output, 'status');
 }
 
 
