@@ -126,7 +126,7 @@ class TMGMTGlobalSightConnector {
       // use post title + hash
       $post_title = str_replace(array(" ", "\t", "\n", "\r"), "_", $job->label);
       $post_title = preg_replace("/[^A-Za-z0-9_]/", "", $post_title);
-      $post_title = substr($post_title, 0, 100) . '_' . $hash;
+      $post_title = substr($post_title, 0, 50) . '_' . $hash;
     } else {
       $post_title = 'dp_' . $hash;
     }
@@ -163,6 +163,12 @@ class TMGMTGlobalSightConnector {
 
   /**
    *  Send method encodes and sends translation job to GlobalSight service.
+   * @todo: This method does not handle errors at all! See fault report in $response['faultstring']:
+      com.globalsight.webservices.WebServiceException: <?xml version="1.0" encoding="UTF-8" ?>
+      <errorXml>
+        <method>uploadFileForInitial</method>
+        <error>You cannot have \, /, :, ;, *, ?, |, ", &lt;, &gt;, % or &amp; in the Job Name.</error>
+      </errorXml>
    *
    * @param TMGMTJob $job
    *   Loaded TMGMT Job object.
