@@ -80,7 +80,7 @@ function tmgmt_globalsight_tmgmt_ui_job_checkout_before_alter(&$redirects, &$job
       $job->translator = 'gs';
       if ($job->isTranslatable()) {
         // Consider child job as added to translation queue.
-        $job->status = 1;
+        $job->setState(TMGMT_JOB_STATE_ACTIVE);
         // Add the job to the list of associated jobs in parent job
         $jobs[0]->settings['associated_jobs'][$job->tjid] = $job->target_language;
         // Flag this job as a child job (cannot be translated individually)
