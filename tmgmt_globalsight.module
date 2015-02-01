@@ -79,13 +79,13 @@ function tmgmt_globalsight_tmgmt_ui_job_checkout_before_alter(&$redirects, &$job
     if ($key > 0) {
       $job->translator = 'gs';
       if ($job->isTranslatable()) {
-        // Child job is disabled, so that it won't even show up in the list of jobs to be translated.
-        $job->status = 0;
+        // Consider child job as added to translation queue.
+        $job->status = 1;
         // Add the job to the list of associated jobs in parent job
         $jobs[0]->settings['associated_jobs'][$job->tjid] = $job->target_language;
         // Flag this job as a child job (cannot be translated individually)
         $job->settings['child_job'] = true;
-        $job->label = $job->label . ' (GlobalSight child)';
+        $job->label = 'GlobalSight child';
 
         $params = array(
           '@url' => '/admin/tmgmt/jobs/' . $jobs[0]->tjid,
@@ -126,9 +126,22 @@ function tmgmt_globalsight_form_alter(&$form, &$form_state, $form_id) {
 
   // Load available languages and make nice list of associated jobs
   $available = tmgmt_available_languages();
+
+  // Inject children job items to the job items list
+  $form['job_items_wrapper']['items']['#markup'] = '<h1>' . t('Target language:') . ' ' . $available[$form_state['tmgmt_job']->target_language] . '</h1>' . $form['job_items_wrapper']['items']['#markup'];
+
   $targets = array($available[$form_state['tmgmt_job']->target_language]);
-  foreach ($form_state['tmgmt_job']->settings['associated_jobs'] as $language) {
+  foreach ($form_state['tmgmt_job']->settings['associated_jobs'] as $ctjid => $language) {
     $targets[] = $available[$language];
+
+    // Load child tjid and inject it's job items into $form['job_items_wrapper']['items']['#markup']
+    if ($view = views_get_view('tmgmt_ui_job_items')) {
+      $cjob = tmgmt_job_load($ctjid);
+      //dsm($cjob);
+      $form['job_items_wrapper']['items']['#markup'] .= '<h1>' . t('Target language:') . ' ' . $available[$language] . '</h1>';
+      $form['job_items_wrapper']['items']['#markup'] .= $view->preview($cjob->isSubmittable() ? 'submit' : 'block', array($ctjid));
+    }
+
   }
 
   // Language selector will be disabled and hidden because there will be multiple languages
