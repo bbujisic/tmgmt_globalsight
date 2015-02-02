@@ -142,6 +142,15 @@ function tmgmt_globalsight_form_alter(&$form, &$form_state, $form_id) {
       $form['job_items_wrapper']['items']['#markup'] .= $view->preview($cjob->isSubmittable() ? 'submit' : 'block', array($ctjid));
     }
 
+
+  }
+  // Add approve all button
+  if (isset($form_state['tmgmt_job']->settings['translated']) && $form_state['tmgmt_job']->state == TMGMT_JOB_STATE_ACTIVE) {
+    $form['job_items_wrapper']['approve_all'] = array(
+      '#type' => 'submit',
+      '#value' => t('Accept all translations'),
+      '#submit' => array('tmgmt_globalsight_approve_all'),
+    );
   }
 
   // Language selector will be disabled and hidden because there will be multiple languages
@@ -156,6 +165,16 @@ function tmgmt_globalsight_form_alter(&$form, &$form_state, $form_id) {
     '@source' => $available[$form_state['tmgmt_job']->source_language],
     '@target' => implode(', ', $targets),
   )));
+}
+
+function tmgmt_globalsight_approve_all($form, $form_state) {
+  foreach($form_state['tmgmt_job']->settings['associated_jobs'] as $tjid => $lang) {
+    $job = tmgmt_job_load($tjid);
+    if($job) {
+      $job->acceptTranslation();
+    }
+  }
+  $form_state['tmgmt_job']->acceptTranslation();
 }
 
 
@@ -278,6 +297,9 @@ function tmgmt_globalsight_ping($job, $record) {
 
     // Update translations per each job item
     $job->addTranslatedData(tmgmt_unflatten_data($translation[$map[$job->target_language]]));
+
+    $job->settings['translated'] = true;
+    $job->save();
 
     // Update our little mapping table -- archive job
     $record['status'] = 0;
