@@ -50,7 +50,7 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
    */
   public function requestTranslation(TMGMTJob $job) {
     // Do not send children jobs to translation.
-    if(isset($job->settings['child_job']) && $job->settings['child_job']) {
+    if (isset($job->settings['child_job']) && $job->settings['child_job']) {
       return;
     }
 
@@ -66,7 +66,7 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
     $target_locales[] = $maps[$job->target_language];
 
     // If translation will happen in bulk, add associated languages.
-    if(isset($job->settings['associated_jobs'])) {
+    if (isset($job->settings['associated_jobs'])) {
       foreach ($job->settings['associated_jobs'] as $language) {
         $target_locales[] = $maps[$language];
       }
@@ -89,11 +89,13 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
         );
         $job->submitted('The translation job has been submitted.');
         drupal_write_record('tmgmt_globalsight', $record);
-      }
-      else {
+      } else {
         // Cancel the job.
         $job->aborted('Translation job was aborted due to unrecoverable error.');
       }
+    } else {
+      // Cancel the job.
+      $job->aborted('Translation job was aborted due to unrecoverable error.');
     }
   }
 

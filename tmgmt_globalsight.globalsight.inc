@@ -199,6 +199,11 @@ class TMGMTGlobalSightConnector {
     );
     $response = $this->webservice->call('uploadFile', $params);
 
+    if ($this->webservice->fault) {
+      $job->addMessage('GlobalSight TMS returned following error: %error', array('%error' => $this->webservice->faultcode));
+      return false;
+    }
+
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
@@ -208,6 +213,12 @@ class TMGMTGlobalSightConnector {
       'targetLocales' => $target_locale
     );
     $response = $this->webservice->call('createJob', $params);
+
+
+    if ($this->webservice->fault) {
+      $job->addMessage('GlobalSight TMS returned following error: %error', array('%error' => $this->webservice->faultcode));
+      return false;
+    }
 
     return $params;
   }
