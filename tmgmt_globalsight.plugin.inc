@@ -103,17 +103,26 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
    * Overrides TMGMTDefaultTranslatorPluginController::cancelTranslation().
    */
   public function cancelTranslation(TMGMTJob $job) {
+
     $job_name = db_query('SELECT job_name FROM {tmgmt_globalsight} WHERE tjid = :tjid', array(':tjid' => $job->tjid))->fetchField();
 
     $translator = $job->getTranslator();
     $gs = new TMGMTGlobalSightConnector($translator);
 
     if ($status = $gs->cancel($job_name)) {
+      // We're aborting the parent job.
       _tmgmt_globalsight_archive_job($job->tjid);
-      $job->cancelled('The translation job has successfully been canceled');
+      $job->aborted('The translation job has successfully been canceled');
+
+      // We need to abort kid jobs too.
+      $kids = tmgmt_job_load_multiple(array_keys($job->settings['associated_jobs']));
+      foreach ($kids as $childJob) {
+        $childJob->aborted('The translation job has successfully been canceled');
+      }
+
       return TRUE;
     }
-
+    
     return FALSE;
   }
 
