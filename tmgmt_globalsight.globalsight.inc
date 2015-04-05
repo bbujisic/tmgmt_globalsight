@@ -378,6 +378,10 @@ class TMGMTGlobalSightConnector {
       }
     }
 
+    if ($results == array()) {
+      return false;
+    }
+
     return $results;
   }
 

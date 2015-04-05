@@ -122,7 +122,7 @@ class TMGMTGlobalSightTranslatorPluginController extends TMGMTDefaultTranslatorP
 
       return TRUE;
     }
-    
+
     return FALSE;
   }
 

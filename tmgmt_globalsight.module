@@ -245,6 +245,11 @@ function tmgmt_globalsight_ping($job, $record) {
     // Send API request to GS
     $translation = $gs->receive($record['job_name']);
 
+    // Something wrong happened...
+    if (!$translation) {
+      return false;
+    }
+
     // Run link localization (if enabled)
     if (variable_get('tmgmt_globalsight_localize_links', 0) == 1) {
       foreach ($translation as $gs_lang => $values) {
