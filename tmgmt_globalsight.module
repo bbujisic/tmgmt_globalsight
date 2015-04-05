@@ -4,6 +4,9 @@ global $base_url;
 //define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
 define('GLOBALSIGHT_WSDL_URL', 'file://' . dirname(__FILE__) . '/AmbassadorWebService.xml');
 
+define('GLOBALSIGHT_JOB_ARCHIVED', 0);
+define('GLOBALSIGHT_JOB_SUBMITTED', 1);
+
 /**
  * Implements hook_cron().
  */
@@ -16,6 +19,18 @@ function tmgmt_globalsight_cron() {
 }
 
 /**
+ * Implements hook_theme().
+ */
+function tmgmt_globalsight_theme() {
+  return array(
+    'tmgmt_globalsight_form_table' => array(
+      // The renderable element is the form.
+      'render element' => 'form',
+    ),
+  );
+}
+
+/**
  * Implements hook_menu().
  */
 function tmgmt_globalsight_menu() {
@@ -24,6 +39,15 @@ function tmgmt_globalsight_menu() {
     'type' => MENU_NORMAL_ITEM,
     'page callback' => 'drupal_get_form',
     'page arguments' => array('tmgmt_globalsight_admin_form'),
+    'file' => 'inc/tmgmt_globalsight.admin.inc',
+    'access arguments' => array('access administration pages'),
+  );
+
+  $items['admin/tmgmt/gs/jobs'] = array(
+    'title' => 'TMGMT GlobalSight jobs',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tmgmt_globalsight_jobs_form'),
     'file' => 'inc/tmgmt_globalsight.admin.inc',
     'access arguments' => array('access administration pages'),
   );
@@ -182,7 +206,7 @@ function tmgmt_globalsight_get_all() {
   // Retrieve the list of all opened jobs
   $result = db_select('tmgmt_globalsight', 't')
     ->fields('t')
-    ->condition('status', 0, '>')
+    ->condition('status', GLOBALSIGHT_JOB_ARCHIVED, '>')
     ->execute();
 
   $links = array();
@@ -225,7 +249,7 @@ function tmgmt_globalsight_ping($job, $record) {
 
   if ($status === "PERMANENT ERROR") {
     // Update our little mapping table -- archive job
-    $record['status'] = 0;
+    $record['status'] = GLOBALSIGHT_JOB_ARCHIVED;
     drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
     $job->aborted('Translation job was cancelled due to unrecoverable error.');
     return false;
@@ -307,7 +331,7 @@ function tmgmt_globalsight_ping($job, $record) {
     $job->save();
 
     // Update our little mapping table -- archive job
-    $record['status'] = 0;
+    $record['status'] = GLOBALSIGHT_JOB_ARCHIVED;
     drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
     return true;
   }
@@ -343,9 +367,31 @@ function _tmgmt_globalsight_delete_job($tjid) {
 
 function _tmgmt_globalsight_archive_job($tjid) {
   $num_updated = db_update('tmgmt_globalsight')
-    ->fields(array('status' => 0))
+    ->fields(array('status' => GLOBALSIGHT_JOB_ARCHIVED))
     ->condition('tjid', $tjid)
     ->execute();
 
   return $num_updated;
+}
+
+function tmgmt_globalsight_set_status($tjid, $status) {
+  $num_updated = db_update('tmgmt_globalsight')
+    ->fields(array('status' => $status))
+    ->condition('tjid', $tjid)
+    ->execute();
+
+  return $num_updated;
+}
+
+function _tmgmt_globalsight_statuses($selected = null) {
+  $statuses = array(
+    GLOBALSIGHT_JOB_ARCHIVED => t('Archived'),
+    GLOBALSIGHT_JOB_SUBMITTED => t('Submitted')
+  );
+
+  if ($selected != null && isset($statuses[$selected])) {
+    $statuses[$selected] .= " (" . t("Default value") . ")";
+  }
+
+  return $statuses;
 }
