@@ -195,7 +195,31 @@ function tmgmt_globalsight_approve_all($form, $form_state) {
   foreach($form_state['tmgmt_job']->settings['associated_jobs'] as $tjid => $lang) {
     $job = tmgmt_job_load($tjid);
     if($job) {
-      $job->acceptTranslation();
+      $jobItems = $job->getItems();
+      foreach ($jobItems as $jobItem) {
+        // I want to do my magic to entity translations only.
+        if($jobItem->plugin !== "entity") {
+          $jobItem->accepted();
+          continue;
+        }
+        $entity = entity_load_single($jobItem->item_type, $jobItem->item_id);
+        tmgmt_field_populate_entity($jobItem->item_type, $entity, $job->target_language, $jobItem->getData());
+
+        $handler = entity_translation_get_handler($jobItem->item_type, $entity, TRUE);
+        $handler->setFormLanguage($job->target_language);
+
+        $translation = array(
+          'translate' => 0,
+          'status' => TRUE,
+          'language' => $job->target_language,
+          'source' => $job->source_language,
+        );
+        $handler->setTranslation($translation);
+        $handler->saveTranslations();
+
+        entity_save($jobItem->item_type, $entity);
+        $jobItem->accepted();
+      }
     }
   }
   $form_state['tmgmt_job']->acceptTranslation();
@@ -310,11 +334,7 @@ function tmgmt_globalsight_ping($job, $record) {
             $i++;
           };
 
-          //dsm($translated_data); return;
-
           $associated_job->addTranslatedData($translated_data);
-//          $associated_job->finished();
-//          $associated_job->save();
 
           $job->addMessage(t('Translation to @language finished.', array('@language' => $associated_lang)));
 
