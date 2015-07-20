@@ -193,7 +193,7 @@ class TMGMTGlobalSightConnector {
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
-      'filePath' => 'GlobalSight.xml',
+      'filePath' => $name . '.xml',
       'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
@@ -208,7 +208,7 @@ class TMGMTGlobalSightConnector {
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
-      'filePaths' => 'GlobalSight.xml',
+      'filePaths' => $name . '.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );
