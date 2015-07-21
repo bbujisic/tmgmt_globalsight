@@ -21,6 +21,7 @@ class TMGMTGlobalSightConnector {
   private $proxyhost = FALSE; // ?
   private $proxyport = FALSE; // ?
   public $file_profile_id = ''; // ?
+  public $postTitle = 'dp';
 
   public $webservice;
 
@@ -126,12 +127,13 @@ class TMGMTGlobalSightConnector {
       // use post title + hash
       $post_title = str_replace(array(" ", "\t", "\n", "\r"), "_", $job->label);
       $post_title = preg_replace("/[^A-Za-z0-9_]/", "", $post_title);
-      $post_title = substr($post_title, 0, 50) . '_' . $hash;
+      $post_title = substr($post_title, 0, 50);
     } else {
-      $post_title = 'dp_' . $hash;
+      $post_title = 'dp';
     }
 
-    return $post_title;
+    $this->postTitle = $post_title;
+    return $post_title . '_' . $hash;
   }
 
   /**
@@ -193,7 +195,7 @@ class TMGMTGlobalSightConnector {
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
-      'filePath' => $name . '.xml',
+      'filePath' => $this->postTitle . '.xml',
       'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
@@ -208,7 +210,7 @@ class TMGMTGlobalSightConnector {
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
-      'filePaths' => $name . '.xml',
+      'filePaths' => $this->postTitle . '.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );
