@@ -70,9 +70,12 @@ function tmgmt_globalsight_jobs_form() {
       'settings',
       'target_language'
     ));
-  // ->condition('status', 1)
+  $query->orderBy('j.tjid', 'DESC');;
 
-  $result = $query->execute();
+  $result = $query
+    ->extend('PagerDefault')
+    ->limit(30)
+    ->execute();
 
   $form = array();
 
@@ -89,7 +92,7 @@ function tmgmt_globalsight_jobs_form() {
 
   foreach ($result as $record) {
     $settings = unserialize($record->settings);
-    $record->target_languages = $settings['associated_jobs'];
+    $record->target_languages = @$settings['associated_jobs'];
     $record->target_languages[] = $record->target_language;
 
     $form['table']['rows'][$record->tjid] = array(
@@ -156,6 +159,6 @@ function theme_tmgmt_globalsight_form_table(&$variables) {
 
 
   // Redner the table and return.
-  return drupal_render($content);
+  return drupal_render($content) . theme('pager', array('tags' => array()));
 
 }
