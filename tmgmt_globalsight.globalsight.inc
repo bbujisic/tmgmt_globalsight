@@ -17,12 +17,13 @@ class TMGMTGlobalSightConnector {
   public $base_url = '';
   private $username = '';
   private $password = '';
-  private $endpoint = '';
+  public $endpoint = '';
   private $proxyhost = FALSE; // ?
   private $proxyport = FALSE; // ?
-  private $file_profile_id = ''; // ?
+  public $file_profile_id = ''; // ?
+  public $postTitle = 'dp';
 
-  private $webservice;
+  public $webservice;
 
   /**
    * Construct the connector to GlobalSight service.
@@ -39,7 +40,11 @@ class TMGMTGlobalSightConnector {
     $this->file_profile_id = $translator->getSetting('file_profile_id');
     $this->base_url = $GLOBALS['base_url'];
 
-    module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/lib/nusoap');
+    // Protection for the case if some other module already uses nusoap.
+    // But seriously @todo: Nusoap should be abandoned!
+    if (!class_exists('nusoap_client')) {
+      module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/lib/nusoap');
+    }
 
     $this->webservice = new nusoap_client(GLOBALSIGHT_WSDL_URL, TRUE);
     $this->webservice->setEndpoint($this->endpoint);
@@ -68,8 +73,7 @@ class TMGMTGlobalSightConnector {
       if (!($err = $this->webservice->getError())) {
         $err = 'No error details';
       }
-      watchdog(
-        'tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
+      watchdog('tmgmt_globalsight', "Error connecting to GlobalSight. Please make sure access credentials for !gs were properly set. <b>Error message:</b> %err", array(
         '!gs' => l('GlobalSight', 'admin/config/regional/tmgmt_translator/manage/GlobalSight'),
         '%err' => $err
       ), WATCHDOG_ERROR);
@@ -97,9 +101,9 @@ class TMGMTGlobalSightConnector {
 
     foreach ($profiles->fileProfile as $profile) {
       if ($profile->id == $this->file_profile_id) {
-        $locales['source'][] = (string) $profile->localeInfo->sourceLocale;
+        $locales['source'][] = (string)$profile->localeInfo->sourceLocale;
         foreach ($profile->localeInfo->targetLocale as $locale) {
-          $locales['target'][] = (string) $locale;
+          $locales['target'][] = (string)$locale;
         }
       }
     }
@@ -123,13 +127,13 @@ class TMGMTGlobalSightConnector {
       // use post title + hash
       $post_title = str_replace(array(" ", "\t", "\n", "\r"), "_", $job->label);
       $post_title = preg_replace("/[^A-Za-z0-9_]/", "", $post_title);
-      $post_title = substr($post_title, 0, 100) . '_' . $hash;
-    }
-    else {
-      $post_title = 'dp_' . $hash;
+      $post_title = substr($post_title, 0, 50);
+    } else {
+      $post_title = 'dp';
     }
 
-    return $post_title;
+    $this->postTitle = $post_title;
+    return $post_title . '_' . $hash;
   }
 
   /**
@@ -147,7 +151,7 @@ class TMGMTGlobalSightConnector {
     $xml .= "<fields id='$job->tjid'>";
 
     foreach ($strings as $key => $string) {
-      if (isset($string['#translate'])) {
+      if ((isset($string['#translate']) && $string['#translate']) || strpos($key, 'node_title') !== FALSE) {
         $xml .= "<field>";
         $xml .= "<name>$key</name>";
         $xml .= "<value><![CDATA[" . $string['#text'] . "]]></value>";
@@ -161,6 +165,12 @@ class TMGMTGlobalSightConnector {
 
   /**
    *  Send method encodes and sends translation job to GlobalSight service.
+   * @todo: This method does not handle errors at all! See fault report in $response['faultstring']:
+      com.globalsight.webservices.WebServiceException: <?xml version="1.0" encoding="UTF-8" ?>
+      <errorXml>
+        <method>uploadFileForInitial</method>
+        <error>You cannot have \, /, :, ;, *, ?, |, ", &lt;, &gt;, % or &amp; in the Job Name.</error>
+      </errorXml>
    *
    * @param TMGMTJob $job
    *   Loaded TMGMT Job object.
@@ -185,25 +195,32 @@ class TMGMTGlobalSightConnector {
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
-      'filePath' => 'GlobalSight.xml',
+      'filePath' => $this->postTitle . '.xml',
       'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
-    dsm($params);
     $response = $this->webservice->call('uploadFile', $params);
-    dsm($response);
+
+    if ($this->webservice->fault) {
+      $job->addMessage('GlobalSight TMS returned following error: %error', array('%error' => $this->webservice->faultcode));
+      return false;
+    }
 
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
-      'filePaths' => 'GlobalSight.xml',
+      'filePaths' => $this->postTitle . '.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );
-    dsm($params);
     $response = $this->webservice->call('createJob', $params);
-    dsm($response);
+
+
+    if ($this->webservice->fault) {
+      $job->addMessage('GlobalSight TMS returned following error: %error', array('%error' => $this->webservice->faultcode));
+      return false;
+    }
 
     return $params;
   }
@@ -222,7 +239,10 @@ class TMGMTGlobalSightConnector {
       return FALSE;
     }
 
-    $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
+    $params = array(
+      'p_accessToken' => $access_token,
+      'p_jobName' => $job_name
+    );
     $result = $this->webservice->call('getStatus', $params);
 
     if ($this->webservice->fault) {
@@ -230,8 +250,7 @@ class TMGMTGlobalSightConnector {
         $err = 'No error details';
       }
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      watchdog(
-        'tmgmt_globalsight', "Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+      watchdog('tmgmt_globalsight', "Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
         '%err' => $err
       ), WATCHDOG_ERROR);
@@ -242,8 +261,7 @@ class TMGMTGlobalSightConnector {
       $xml = new SimpleXMLElement($result);
       return $this->xml2array($xml);
     } catch (Exception $err) {
-      watchdog(
-        'tmgmt_globalsight', "Error parsing XML for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+      watchdog('tmgmt_globalsight', "Error parsing XML for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
         '%err' => $err
       ), WATCHDOG_ERROR);
@@ -266,7 +284,10 @@ class TMGMTGlobalSightConnector {
       return FALSE;
     }
 
-    $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
+    $params = array(
+      'p_accessToken' => $access_token,
+      'p_jobName' => $job_name
+    );
     $result = $this->webservice->call('cancelJob', $params);
 
     if ($this->webservice->fault) {
@@ -274,8 +295,7 @@ class TMGMTGlobalSightConnector {
         $err = 'No error details';
       }
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      watchdog(
-        'tmgmt_globalsight', "Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
+      watchdog('tmgmt_globalsight', "Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
         '!job_name' => $job_name,
         '%err' => $err
       ));
@@ -301,11 +321,13 @@ class TMGMTGlobalSightConnector {
       return FALSE;
     }
 
-    $params = array('p_accessToken' => $access_token, 'p_jobName' => $job_name);
+    $params = array(
+      'p_accessToken' => $access_token,
+      'p_jobName' => $job_name
+    );
     $result = $this->webservice->call("getLocalizedDocuments", $params);
     $xml = new SimpleXMLElement($result);
-
-    $download_url_prefix = $xml->urlPrefix;
+    $download_url_prefix = (string)$xml->urlPrefix;
 
     $result = $this->webservice->call("getJobExportFiles", $params);
     $xml = new SimpleXMLElement($result);
@@ -326,9 +348,12 @@ class TMGMTGlobalSightConnector {
       );
       $http_options['context'] = stream_context_create($aContext);
     }
+    else {
+      $http_options['context'] = null;
+    }
 
     foreach ($paths as $path) {
-      $path = trim((string) $path);
+      $path = trim((string)$path);
 
 
       // We are going to presume that path /globalsight/cxedocs/Gcomp/fr_FR/webservice/226/GlobalSight.xml
@@ -336,19 +361,27 @@ class TMGMTGlobalSightConnector {
       // identifier will be the key in the returned array.
       $languageCode = trim(explode('/', $path)[0]);
 
-      $result = drupal_http_request($download_url_prefix . '/' . $path, $http_options);
+      $url = $download_url_prefix . '/' . $path;
+
+      // IDZ for some reason does not allow usage of drupal_http_request() function. So utterly ugly file_get_contents
+      // is being used.
+      $result = file_get_contents($url, FALSE, $http_options['context']);
 
       // @todo: Find a better plan for contingency if result code is not 200
-      if ($result->code == 200 && $languageCode) {
-        $xmlObject = simplexml_load_string($result->data, 'SimpleXMLElement', LIBXML_NOCDATA);
+      if ($result && $languageCode) {
+        $xmlObject = simplexml_load_string($result, 'SimpleXMLElement', LIBXML_NOCDATA);
         foreach ($xmlObject->field as $field) {
-          $value = (string) $field->value;
-          $key = (string) $field->name;
+          $value = (string)$field->value;
+          $key = (string)$field->name;
           $results[$languageCode][$key] = array(
             '#text' => $value,
           );
         }
       }
+    }
+
+    if ($results == array()) {
+      return false;
     }
 
     return $results;
@@ -373,7 +406,7 @@ class TMGMTGlobalSightConnector {
    * Helper method recursively converting xml documents to array.
    */
   function xml2array($xmlObject, $out = array()) {
-    foreach ((array) $xmlObject as $index => $node) {
+    foreach ((array)$xmlObject as $index => $node) {
       $out[$index] = (is_object($node)) ? $this->xml2array($node) : $node;
     }
 
@@ -404,8 +437,7 @@ class TMGMTGlobalSightConnector {
 
       // IMPORT_FAILED appears to be status when XML file is corrupt.
       case 'IMPORT_FAILED':
-        watchdog(
-          'tmgmt_globalsight', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
+        watchdog('tmgmt_globalsight', "Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array(), WATCHDOG_ERROR);
         drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
         return FALSE;
         break;
@@ -420,8 +452,7 @@ class TMGMTGlobalSightConnector {
         if ($revised_status == 'UPLOADING') {
 
           // Consolidate this messaging into an error handler and inject it as dependency
-          watchdog(
-            'tmgmt_globalsight', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
+          watchdog('tmgmt_globalsight', "Error creating job at GlobalSight. Translation job canceled.", array(), WATCHDOG_ERROR);
           drupal_set_message(t('Error creating job at GlobalSight. Translation job canceled.'), 'error');
           return FALSE;
         }

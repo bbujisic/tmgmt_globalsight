@@ -1,7 +1,11 @@
 <?php
 
 global $base_url;
-define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
+//define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
+define('GLOBALSIGHT_WSDL_URL', 'file://' . dirname(__FILE__) . '/AmbassadorWebService.xml');
+
+define('GLOBALSIGHT_JOB_ARCHIVED', 0);
+define('GLOBALSIGHT_JOB_SUBMITTED', 1);
 
 /**
  * Implements hook_cron().
@@ -12,6 +16,18 @@ function tmgmt_globalsight_cron() {
     return;
   }
   tmgmt_globalsight_get_all();
+}
+
+/**
+ * Implements hook_theme().
+ */
+function tmgmt_globalsight_theme() {
+  return array(
+    'tmgmt_globalsight_form_table' => array(
+      // The renderable element is the form.
+      'render element' => 'form',
+    ),
+  );
 }
 
 /**
@@ -27,9 +43,47 @@ function tmgmt_globalsight_menu() {
     'access arguments' => array('access administration pages'),
   );
 
+  $items['admin/tmgmt/gs/jobs'] = array(
+    'title' => 'TMGMT GlobalSight jobs',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('tmgmt_globalsight_jobs_form'),
+    'file' => 'inc/tmgmt_globalsight.admin.inc',
+    'access arguments' => array('access administration pages'),
+  );
+
+  $items['admin/tmgmt/gs/test'] = array(
+    'title' => 'TMGMT GlobalSight test',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'tmgmt_globalsight_test',
+    'file' => 'inc/tmgmt_globalsight.diagnostics.inc',
+    'access arguments' => array('access administration pages'),
+  );
+
   return $items;
 }
 
+
+function tmgmt_globalsight_update_links($sourceLanguage, $targetLanguage, $string) {
+  preg_match_all('#<a\s.*?(?:href=[\'"](.*?)[\'"]).*?>#is', $string, $matches);
+  $links = $matches[1];
+
+
+  $languages = language_list();//tmgmt_available_languages();
+
+  if (!($sourcePrefix = $languages[$sourceLanguage]->prefix) || !($targetPrefix = $languages[$targetLanguage]->prefix)) {
+    return false;
+  }
+
+
+  foreach ($links as $link) {
+    if (strpos($link, $sourceLanguage) !== FALSE) {
+      $linkReplacement = str_replace($sourcePrefix, $targetPrefix, $link);
+      $string = str_replace($link, $linkReplacement, $string);
+    }
+  }
+  return $string;
+}
 
 /**
  * Implements hook_tmgmt_ui_job_checkout_before_alter().
@@ -45,20 +99,32 @@ function tmgmt_globalsight_tmgmt_ui_job_checkout_before_alter(&$redirects, &$job
     return;
   }
   foreach ($jobs as $key => $job) {
+    // All jobs but the first one will be "children jobs"
     if ($key > 0) {
       $job->translator = 'gs';
-      $job->status = 1;
       if ($job->isTranslatable()) {
+        // Consider child job as added to translation queue.
+        $job->setState(TMGMT_JOB_STATE_ACTIVE);
         // Add the job to the list of associated jobs in parent job
         $jobs[0]->settings['associated_jobs'][$job->tjid] = $job->target_language;
         // Flag this job as a child job (cannot be translated individually)
         $job->settings['child_job'] = true;
+        $job->label = 'GlobalSight child';
+
+        $params = array(
+          '@url' => '/admin/tmgmt/jobs/' . $jobs[0]->tjid,
+          '@tjid' => $jobs[0]->tjid,
+        );
+
+        $job->addMessage(t('This job was sent to GlobalSight as part of job <a href="@url">@tjid</a>. It cannot be translated individually.', $params));
       } else {
+        // The child job is not translatable.
         $params = array(
           '@url' => '/admin/tmgmt/jobs/' . $job->tjid,
           '@tjid' => $job->tjid,
         );
-        drupal_set_message(t('Job <a href="@url">@tjid</a> is not translatable. It will be skipped.', $params), 'warning');
+        $message = t('Job <a href="@url">@tjid</a> is not translatable. It will be skipped.', $params);
+        $jobs[0]->addMessage($message);
       }
       $job->save();
     }
@@ -84,9 +150,31 @@ function tmgmt_globalsight_form_alter(&$form, &$form_state, $form_id) {
 
   // Load available languages and make nice list of associated jobs
   $available = tmgmt_available_languages();
+
+  // Inject children job items to the job items list
+  $form['job_items_wrapper']['items']['#markup'] = '<h1>' . t('Target language:') . ' ' . $available[$form_state['tmgmt_job']->target_language] . '</h1>' . $form['job_items_wrapper']['items']['#markup'];
+
   $targets = array($available[$form_state['tmgmt_job']->target_language]);
-  foreach ($form_state['tmgmt_job']->settings['associated_jobs'] as $language) {
+  foreach ($form_state['tmgmt_job']->settings['associated_jobs'] as $ctjid => $language) {
     $targets[] = $available[$language];
+
+    // Load child tjid and inject it's job items into $form['job_items_wrapper']['items']['#markup']
+    if ($view = views_get_view('tmgmt_ui_job_items')) {
+      $cjob = tmgmt_job_load($ctjid);
+      //dsm($cjob);
+      $form['job_items_wrapper']['items']['#markup'] .= '<h1>' . t('Target language:') . ' ' . $available[$language] . '</h1>';
+      $form['job_items_wrapper']['items']['#markup'] .= $view->preview($cjob->isSubmittable() ? 'submit' : 'block', array($ctjid));
+    }
+
+
+  }
+  // Add approve all button
+  if (isset($form_state['tmgmt_job']->settings['translated']) && $form_state['tmgmt_job']->state == TMGMT_JOB_STATE_ACTIVE) {
+    $form['job_items_wrapper']['approve_all'] = array(
+      '#type' => 'submit',
+      '#value' => t('Accept all translations'),
+      '#submit' => array('tmgmt_globalsight_approve_all'),
+    );
   }
 
   // Language selector will be disabled and hidden because there will be multiple languages
@@ -103,22 +191,63 @@ function tmgmt_globalsight_form_alter(&$form, &$form_state, $form_id) {
   )));
 }
 
+function tmgmt_globalsight_approve_all($form, $form_state) {
+  foreach($form_state['tmgmt_job']->settings['associated_jobs'] as $tjid => $lang) {
+    $job = tmgmt_job_load($tjid);
+    if($job) {
+      $jobItems = $job->getItems();
+      foreach ($jobItems as $jobItem) {
+        // I want to do my magic to entity translations only.
+        if($jobItem->plugin !== "entity") {
+          $jobItem->accepted();
+          continue;
+        }
+        $entity = entity_load_single($jobItem->item_type, $jobItem->item_id);
+        tmgmt_field_populate_entity($jobItem->item_type, $entity, $job->target_language, $jobItem->getData());
+
+        $handler = entity_translation_get_handler($jobItem->item_type, $entity, TRUE);
+        $handler->setFormLanguage($job->target_language);
+
+        $translation = array(
+          'translate' => 0,
+          'status' => TRUE,
+          'language' => $job->target_language,
+          'source' => $job->source_language,
+        );
+        $handler->setTranslation($translation);
+        $handler->saveTranslations();
+
+        entity_save($jobItem->item_type, $entity);
+        $jobItem->accepted();
+      }
+    }
+  }
+  $form_state['tmgmt_job']->acceptTranslation();
+}
+
 
 function tmgmt_globalsight_get_all() {
   // Retrieve the list of all opened jobs
   $result = db_select('tmgmt_globalsight', 't')
     ->fields('t')
-    ->condition('status', 0, '>')
+    ->condition('status', GLOBALSIGHT_JOB_ARCHIVED, '>')
     ->execute();
 
+  $links = array();
   // Loop through jobs and check for translations
   while ($record = $result->fetchAssoc()) {
     $job = tmgmt_job_load($record['tjid']);
     if (!$job) {
       continue;
     }
-    tmgmt_globalsight_ping($job, $record);
+    if (tmgmt_globalsight_ping($job, $record)) {
+      $links[] = l('Job ' . $job->tjid . ': ' . $job->label, 'admin/tmgmt/jobs/' . $job->tjid);
+    };
   }
+  $output = format_plural(count($links), '1 translation job received.', '@count translation jobs received.');
+  $output .= theme('item_list', array('items' => $links));
+
+  drupal_set_message($output, 'status');
 }
 
 
@@ -130,8 +259,10 @@ function tmgmt_globalsight_get_all() {
  *   Loaded TMGMT Job object.
  * @param $record
  *   {tmgmt_globalsight} record connecting TMGMT and GS jobs
+ * @return bool
  */
 function tmgmt_globalsight_ping($job, $record) {
+
 
   $translator = $job->getTranslator();
 
@@ -142,14 +273,15 @@ function tmgmt_globalsight_ping($job, $record) {
 
   if ($status === "PERMANENT ERROR") {
     // Update our little mapping table -- archive job
-    $record['status'] = 0;
+    $record['status'] = GLOBALSIGHT_JOB_ARCHIVED;
     drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
     $job->aborted('Translation job was cancelled due to unrecoverable error.');
+    return false;
   }
 
   // Skip execution if GlobalSight status hasn't changed
   if ($status['status'] == $gs->code2status($record['status'])) {
-    return;
+    return false;
   }
 
   // So we have translations now!
@@ -161,20 +293,30 @@ function tmgmt_globalsight_ping($job, $record) {
     // Send API request to GS
     $translation = $gs->receive($record['job_name']);
 
-    //dsm($translation);return;
+    // Something wrong happened...
+    if (!$translation) {
+      return false;
+    }
+
+    // Run link localization (if enabled)
+    if (variable_get('tmgmt_globalsight_localize_links', 0) == 1) {
+      foreach ($translation as $gs_lang => $values) {
+        $targetLanguage = array_search($gs_lang, $map);
+        foreach ($values as $field => $value) {
+          foreach ($value as $key => $string) {
+            $translation[$gs_lang][$field][$key] = tmgmt_globalsight_update_links($job->source_language, $targetLanguage, $string);
+          }
+        }
+      }
+    }
 
     // The translation "might" contain records for multiple jobs.
-//    dsm(array(
-//      'job' => $job,
-//      'map' => $map
-//    ));
     if (isset($job->settings['associated_jobs'])) {
       foreach ($job->settings['associated_jobs'] as $associated_tjid => $associated_lang) {
         $gs_lang = $map[$associated_lang];
         if (isset($translation[$gs_lang])) {
           $associated_job = tmgmt_job_load($associated_tjid);
           $associated_job->setState(TMGMT_JOB_STATE_ACTIVE);
-
 
 
           // We sent tjiids of original job as keys to Globalsight. Now we need to convert these (wrong) tjiids into
@@ -193,27 +335,25 @@ function tmgmt_globalsight_ping($job, $record) {
           };
 
           $associated_job->addTranslatedData($translated_data);
-//          $associated_job->finished();
-//          $associated_job->save();
 
-          $job->addMessage(t('Translation to @language finished.', array('@language'=> $associated_lang)));
+          $job->addMessage(t('Translation to @language finished.', array('@language' => $associated_lang)));
 
-        }
-        else {
+        } else {
           // We still do not have translation!
         }
       }
     }
 
-
-    // @todo: How to reduce error margin with these "children" jobs?
-    //dsm($translation);
-    //return;
     // Update translations per each job item
     $job->addTranslatedData(tmgmt_unflatten_data($translation[$map[$job->target_language]]));
+
+    $job->settings['translated'] = true;
+    $job->save();
+
     // Update our little mapping table -- archive job
-    $record['status'] = 0;
-    //drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
+    $record['status'] = GLOBALSIGHT_JOB_ARCHIVED;
+    drupal_write_record('tmgmt_globalsight', $record, array('tjid'));
+    return true;
   }
 }
 
@@ -247,9 +387,31 @@ function _tmgmt_globalsight_delete_job($tjid) {
 
 function _tmgmt_globalsight_archive_job($tjid) {
   $num_updated = db_update('tmgmt_globalsight')
-    ->fields(array('status' => 0))
+    ->fields(array('status' => GLOBALSIGHT_JOB_ARCHIVED))
     ->condition('tjid', $tjid)
     ->execute();
 
   return $num_updated;
+}
+
+function tmgmt_globalsight_set_status($tjid, $status) {
+  $num_updated = db_update('tmgmt_globalsight')
+    ->fields(array('status' => $status))
+    ->condition('tjid', $tjid)
+    ->execute();
+
+  return $num_updated;
+}
+
+function _tmgmt_globalsight_statuses($selected = null) {
+  $statuses = array(
+    GLOBALSIGHT_JOB_ARCHIVED => t('Archived'),
+    GLOBALSIGHT_JOB_SUBMITTED => t('Submitted')
+  );
+
+  if ($selected != null && isset($statuses[$selected])) {
+    $statuses[$selected] .= " (" . t("Default value") . ")";
+  }
+
+  return $statuses;
 }
