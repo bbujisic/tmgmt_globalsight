@@ -19,7 +19,7 @@ GlobalSight instance
 
 -- INSTALLATION --
 
-Install as usual, see http://drupal.org/node/70151 for further information.
+Install as usual, see https://www.drupal.org/node/1897420 for further information.
 
 Download and extract nusoap into module's lib subdirectory. Path to nusoap.php
   file should be tmgmt_globalsight/lib/nusoap/lib/nusoap.php
@@ -27,7 +27,7 @@ Download and extract nusoap into module's lib subdirectory. Path to nusoap.php
 
 -- CONTACT --
 
-Branislav Bujisic - http://drupal.org/user/52799
+WELOCALIZE - https://www.drupal.org/user/3463233
 
 
 -- THANKS TO --

@@ -7,7 +7,7 @@ function tmgmt_globalsight_requirements($phase) {
 
   $requirements = array();
   // Ensure translations don't break during installation.
-  $t = get_t();
+  $t = 't';
 
   // Report Drupal version
   if ($phase == 'runtime') {
@@ -15,9 +15,9 @@ function tmgmt_globalsight_requirements($phase) {
     if (!file_exists(drupal_get_path('module', 'tmgmt_globalsight') . '/lib/nusoap/lib/nusoap.php')) {
       $requirements['nusoap'] = array(
         'title' => $t('Nusoap library'),
-        'description' => $t('Nusoap library was not installed. Please download it from !url. For more information, please refer to README.txt.', array('!url' => l('Sourceforge', 'http://sourceforge.net/projects/nusoap/'))),
+        'description' => $t('Nusoap library was not installed. Please download it from !url. For more information, please refer to README.txt.', array('!url' => \Drupal::l ( 'Sourceforge', \Drupal\Core\Url::fromUri ('http://sourceforge.net/projects/nusoap/')))),
         'value' => $t('Not found!'),
-        'severity' => REQUIREMENT_ERROR,
+        'severity' => REQUIREMENT_ERROR 
       );
     }
   }
@@ -35,26 +35,26 @@ function tmgmt_globalsight_schema() {
       'tjid' => array(
         'description' => 'The identifier of the translation job.',
         'type' => 'int',
-        'not null' => TRUE,
+        'not null' => TRUE 
       ),
       'job_name' => array(
         'description' => 'GlobalSight Job Name.',
         'type' => 'varchar',
         'length' => 255,
-        'not null' => TRUE,
+        'not null' => TRUE 
       ),
       'status' => array(
         'description' => 'The state of the translation job.',
         'type' => 'int',
         'not null' => TRUE,
         'size' => 'tiny',
-        'unsigned' => TRUE,
-      ),
+        'unsigned' => TRUE 
+      ) 
     ),
     'primary key' => array('tjid'),
     'indexes' => array(
-      'status' => array('status'),
-    ),
+      'status' => array('status') 
+    ) 
   );
 
   return $schema;
