@@ -1,8 +1,0 @@
-name = GlobalSight Translator
-description = An OpenSource Translator using GlobalSight.
-package = Translation Management
-core = 7.x
-dependencies[] = tmgmt
-files[] = tmgmt_globalsight.plugin.inc
-files[] = tmgmt_globalsight.ui.inc
-files[] = tmgmt_globalsight.globalsight.inc
