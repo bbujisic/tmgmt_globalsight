@@ -12,6 +12,7 @@ function tmgmt_globalsight_requirements($phase) {
   // Report Drupal version
   if ($phase == 'runtime') {
 
+    // @TODO: EVALUATE IF PHP SOAP EXISTS
     if (!file_exists(drupal_get_path('module', 'tmgmt_globalsight') . '/lib/nusoap/lib/nusoap.php')) {
       $requirements['nusoap'] = array(
         'title' => $t('Nusoap library'),

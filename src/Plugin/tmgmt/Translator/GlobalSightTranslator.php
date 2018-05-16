@@ -37,17 +37,55 @@ use Drupal\tmgmt\Translator\AvailableResult;
  */
 class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFactoryPluginInterface, ContinuousTranslatorInterface {
 
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    return new static (
+      $configuration,
+      $plugin_id,
+      $plugin_definition
+    );
+  }
 
+  /**
+   * {@inheritdoc}
+   */
+  public function getSupportedTargetLanguages(TranslatorInterface $translator, $source_language) {
+    // @todo: Dependency injection!
+    $gs = new TMGMTGlobalSightConnector($translator);
+    $locales = $gs->getLocales();
+
+    if (!($locales)) {
+      return [];
+    }
+
+    // Forbid translations if source and target languages are not supported by GlobalSight.
+    if (!in_array($source_language, $locales['source'])) {
+      return [];
+    }
+
+    $target_languages = [];
+    foreach ($locales['target'] as $target_language) {
+      $target_languages[$target_language] = $target_language;
+    }
+
+    return $target_languages;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function requestTranslation(JobInterface $job) {
     $translator = $job->getTranslator();
-    // Instantiate GlobalSightConnector object.
-    // @todo: DEPENDENCY INJECTION OR SOMETHING LIKE THAT!!!
+
+    // @todo: Dependency injection!
     $gs = new TMGMTGlobalSightConnector($translator);
 
     // Send translation job to GlobalSight.
     if ($result = $gs->send($job, $translator->label(), $job->getRemoteTargetLanguage())) {
       // Okay we managed to send, but we are not sure if GS received translations. Check job status.
-      $ok = $gs->uploadErrorHandler($result ['jobName']);
+      $ok = $gs->uploadErrorHandler($result['jobName']);
 
       if ($ok) {
         // Make sure that there are not previous records of the job.
@@ -71,82 +109,6 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
   public function requestJobItemsTranslation(array $job_items) {
     // ContinuousTranslatorInterface
     // TODO: Implement requestJobItemsTranslation() method.
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
-    $client = $container->get('http_client');
-
-    return new static (
-
-      $configuration,
-      $plugin_id,
-      $plugin_definition
-    );
-  }
-
-  /**
-   *
-   * {@inheritdoc}
-   *
-   */
-  public function checkAvailable(TranslatorInterface $translator) {
-    // Instantiate GlobalSightConnector object.
-    $gs = new TMGMTGlobalSightConnector ($translator);
-    // Make sure we received proper list of locales from GlobalSight.
-    if (!($locales = $gs->getLocales())) {
-      return AvailableResult::no(t('@translator is not available. Make sure it is properly <a href=:configured>configured</a>.', [
-        '@translator' => $translator->label(),
-        ':configured' => $translator->url()
-      ]));
-    }
-
-    return AvailableResult::yes();
-  }
-
-  /**
-   *
-   * {@inheritdoc}
-   *
-   */
-  public function getGlobalSightTargetLanguages(TranslatorInterface $translator) {
-    $gs = new TMGMTGlobalSightConnector ($translator);
-    $locales = $gs->getLocales();
-    $remote_languages = $locales ['target'];
-    $ls = array();
-
-    foreach ($remote_languages as $l) {
-      $ls [$l] = $l;
-    }
-
-    return $ls;
-  }
-
-  /**
-   * Overrides TMGMTDefaultTranslatorPluginController::getSupportedTargetLanguages().
-   */
-  public function getSupportedTargetLanguages(TranslatorInterface $translator, $source_language) {
-    $gs = new TMGMTGlobalSightConnector ($translator);
-    $locales = $gs->getLocales();
-    if (!($locales)) {
-      return array();
-    }
-
-    // Forbid translations if source and target languages are not supported by GlobalSight.
-    if (!in_array($source_language, $locales ['source'])) {
-      return array();
-    }
-
-    $remote_languages = $locales ['target'];
-    $ls = array();
-
-    foreach ($remote_languages as $l) {
-      $ls [$l] = $l;
-    }
-
-    return $ls;
   }
 
   /**

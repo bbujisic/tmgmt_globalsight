@@ -93,3 +93,7 @@ function _tmgmt_globalsight_archive_job($tjid) {
 
   return $num_updated;
 }
+
+function b($var) {
+  var_dump($var); die();
+}

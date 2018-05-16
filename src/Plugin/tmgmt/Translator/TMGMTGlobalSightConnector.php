@@ -4,7 +4,7 @@ namespace Drupal\tmgmt_globalsight\Plugin\tmgmt\Translator;
 
 use Drupal\tmgmt\JobInterface;
 use Drupal\tmgmt\TranslatorInterface;
-use nusoap_client;
+use Masterminds\HTML5\Exception;
 use Symfony\Component\DependencyInjection\SimpleXMLElement;
 
 /**
@@ -15,92 +15,69 @@ class TMGMTGlobalSightConnector {
   private $username = '';
   private $password = '';
   private $endpoint = '';
-  private $proxyhost = FALSE; // ?
-  private $proxyport = FALSE; // ?
-  private $file_profile_name = ''; // ?
+  private $proxyhost = FALSE;
+  private $proxyport = FALSE;
+  private $file_profile_id = '';
   private $webservice;
 
   function __construct(TranslatorInterface $translator) {
     $this->endpoint = $translator->getSetting('endpoint');
     $this->username = $translator->getSetting('username');
     $this->password = $translator->getSetting('password');
-    $this->proxyhost = $translator->getSetting('proxyhost');
-    $this->proxyport = $translator->getSetting('proxyport');
-    $this->file_profile_name = $translator->getSetting('file_profile_name');
+    $this->file_profile_id = $translator->getSetting('file_profile_name');
     $this->base_url = $GLOBALS ['base_url'];
-    module_load_include('php', 'tmgmt_globalsight', 'lib/nusoap/nusoap');
 
-    // @todo: REPLACE NUSOAP DUE TO PHP7 COMPATIBILITY ISSUES.
-    $this->webservice = new nusoap_client ($GLOBALS ['base_url'] . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml', TRUE);
+    ini_set('soap.wsdl_cache_enabled', 0);
+    ini_set('soap.wsdl_cache_ttl', 0);
 
-    $this->webservice->setEndpoint($this->endpoint);
+    $this->webservice = new \SoapClient($this->endpoint . '?wsdl', [
+      'trace' => FALSE,
+      'exceptions' => TRUE,
+    ]);
+    $this->webservice->__setLocation($this->endpoint);
   }
 
   /**
-   * Login method sends access parameters to GlobalSight and, upon success, receives access token.
+   * Authenticate with GS.
    *
-   * @return bool|mixed - FALSE: if login failed for any reason.
-   *         - Access Token: if login succeeded.
-   *
-   * @todo : Current process does authorization on each page request. Try saving access token in database and reusing it
-   *       in successive requests.
+   * @return string|null
+   *    Token if login succeeded, otherwise logs error and returns NULL.
    */
-  function login() {
-    $this->webservice->setHTTPProxy($this->proxyhost, $this->proxyport);
-    $params = array(
+  public function login() {
+    return $this->call('login', [
       'p_username' => $this->username,
-      'p_password' => $this->password
-    );
-    $result = $this->webservice->call('login', $params);
-
-    if ($this->webservice->fault) {
-      if (!($err = $this->webservice->getError())) {
-        $err = 'No error details';
-      }
-
-      return FALSE;
-    }
-
-    return $result;
+      'p_password' => $this->password,
+    ]);
   }
 
   /**
    * getLocales method sends 'getFileProfileInfoEx' API request and parses a list of available languages.
    */
   function getLocales() {
-    $locales = array();
 
     if (!($access_token = $this->login())) {
       return FALSE;
     }
 
-    if (!($fpId = $this->getFileProfileId($access_token))) {
-      return FALSE;
+
+    $fileProfiles = $this->getFileProfiles($access_token);
+    if (isset($fileProfiles[$this->file_profile_id])) {
+      $locales = [
+        'source' => [$fileProfiles[$this->file_profile_id]['localeInfo']['sourceLocale']],
+        'target' => $fileProfiles[$this->file_profile_id]['localeInfo']['targetLocale'],
+      ];
+
+      return $locales;
     }
 
-    $params = array(
-      'p_accessToken' => $access_token
-    );
-    $result = $this->webservice->call('getFileProfileInfoEx', $params);
-    $profiles = simplexml_load_string($result);
-
-    foreach ($profiles->fileProfile as $profile) {
-      if ($profile->id == $fpId) {
-        $locales ['source'] [] = ( string ) $profile->localeInfo->sourceLocale;
-        foreach ($profile->localeInfo->targetLocale as $locale) {
-          $locales ['target'] [] = ( string ) $locale;
-        }
-      }
-    }
-
-    return $locales;
+    return FALSE;
   }
 
   /**
    * Method generates titles for GlobalSight by replacing unsupported characters with underlines and
    * adding some MD5 hash trails in order to assure uniqueness of job titles.
    *
-   * @param TMGMTJob $job
+   * @param JobInterface $job
    *            Loaded TMGMT Job object.
    * @return string GlobalSight job title.
    */
@@ -127,7 +104,7 @@ class TMGMTGlobalSightConnector {
   /**
    * Method generates XML document for GlobalSight based on TMGMTJob object.
    *
-   * @param TMGMTJob $job
+   * @param JobInterface $job
    *            Loaded TMGMT Job object.
    * @return string XML document as per GlobalSight API specifications.
    */
@@ -148,20 +125,19 @@ class TMGMTGlobalSightConnector {
     return $xml;
   }
 
-  function getFileProfileId($access_token) {
-    $params = array(
+  public function getFileProfiles($access_token) {
+    $result = $this->call('getFileProfileInfoEx', [
       'p_accessToken' => $access_token
-    );
-    $result = $this->webservice->call('getFileProfileInfoEx', $params);
+    ]);
+
     $profiles = simplexml_load_string($result);
 
+    $fpids = [];
     foreach ($profiles->fileProfile as $profile) {
-      if ($profile->name == $this->file_profile_name) {
-        return (string) $profile->id;
-      }
+      $fpids[(string) $profile->id] = $this->xml2array($profile);
     }
 
-    return FALSE;
+    return $fpids;
   }
 
   /**
@@ -169,18 +145,23 @@ class TMGMTGlobalSightConnector {
    *
    * @param JobInterface $job
    *            Loaded TMGMT Job object.
-   * @param $target_locale GlobalSign
+   * @param string $label
+   *            Job label.
+   * @param string $target_locale
    *            locale code (e.g. en_US).
-   * @param $name
+   * @param string $name
    *            job title.
-   * @return array Array of parameters sent with CreateJob API call.
+   * @return array|false
+   *            Array of parameters sent with CreateJob API call.
    */
   function send($job, $label, $target_locale, $name = FALSE) {
     if (!($access_token = $this->login())) {
       return FALSE;
     }
 
-    if (!($fpId = $this->getFileProfileId($access_token))) {
+    $fileProfiles = $this->getFileProfiles($access_token);
+    if (!isset($fileProfiles[$this->file_profile_id])) {
+      // @todo: COME ON -- ERROR MESSAGES!
       return FALSE;
     }
 
@@ -193,19 +174,19 @@ class TMGMTGlobalSightConnector {
       'accessToken' => $access_token,
       'jobName' => $name,
       'filePath' => 'GlobalSight.xml',
-      'fileProfileId' => $fpId,
+      'fileProfileId' => $this->file_profile_id,
       'content' => base64_encode($xml)
     );
-    $response = $this->webservice->call('uploadFile', $params);
+    $response = $this->call('uploadFile', $params);
     $params = array(
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
       'filePaths' => 'GlobalSight.xml',
-      'fileProfileIds' => $fpId,
+      'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     );
-    $response = $this->webservice->call('createJob', $params);
+    $response = $this->call('createJob', $params);
 
     return $params;
   }
@@ -227,24 +208,20 @@ class TMGMTGlobalSightConnector {
       'p_accessToken' => $access_token,
       'p_jobName' => $job_name
     );
-    $result = $this->webservice->call('getStatus', $params);
+    $result = $this->call('getStatus', $params);
 
-    if ($this->webservice->fault) {
-      if (!($err = $this->webservice->getError())) {
-        $err = 'No error details';
-      }
+    if (!$result) {
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       \Drupal::logger('tmgmt_globalsight')
-        ->error("Error getting job status for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+        ->error("Error getting job status for !job_name. Translation job will be canceled. <br>", array(
           '!job_name' => $job_name,
-          '%err' => $err
         ));
 
       return 'PERMANENT ERROR';
     }
 
     try {
-      $xml = new SimpleXMLElement ($result);
+      $xml = new \SimpleXMLElement($result);
 
       return $this->xml2array($xml);
     }
@@ -388,7 +365,7 @@ class TMGMTGlobalSightConnector {
    */
   function uploadErrorHandler($jobName) {
     $status = $this->getStatus($jobName);
-    $status = $status ['status'];
+    $status = $status['status'];
 
     // LEVERAGING appears to be normal status right after successful upload
 
@@ -427,5 +404,31 @@ class TMGMTGlobalSightConnector {
     };
 
     return TRUE;
+  }
+
+  /**
+   * Let this function run SOAP errands for us.
+   *
+   * @param $function_name
+   * @param $params
+   * @return null
+   *
+   * @todo: Document it a bit better.
+   */
+  private function call($function_name, $params) {
+    try {
+      $result = $this->webservice->__soapCall($function_name, $params);
+    }
+    catch (\SoapFault $sf) {
+      \Drupal::logger('tmgmt_globalsight')
+        ->notice("SOAP Fault code: !faultcode. <br> <b>Error message:</b><br> %err", array(
+          '!faultcode' => $sf->getCode(),
+          '%err' => $sf->getMessage(),
+        ));
+
+      return NULL;
+    }
+
+    return $result;
   }
 }
