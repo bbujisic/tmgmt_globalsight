@@ -243,28 +243,18 @@ class TMGMTGlobalSightConnector {
       return FALSE;
     }
 
-    $params = array(
+    $result = $this->call('cancelJob', [
       'p_accessToken' => $access_token,
       'p_jobName' => $job_name
-    );
-    $result = $this->webservice->call('cancelJob', $params);
+    ]);
 
-    if ($this->webservice->fault) {
-      if (!($err = $this->webservice->getError())) {
-        $err = 'No error details';
-      }
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      \Drupal::logger('tmgmt_globalsight')
-        ->notice("Could not cancel !job_name job. <br> <b>Error message:</b><br> %err", array(
-          '!job_name' => $job_name,
-          '%err' => $err
-        ));
-
+    if ($result instanceof Exception) {
       return FALSE;
     }
 
-    $xml = new SimpleXMLElement ($result);
+    $xml = new \SimpleXMLElement($result);
 
+    // @todo: will this work?
     return $this->xml2array($xml);
   }
 

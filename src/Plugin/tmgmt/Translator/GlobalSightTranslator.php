@@ -130,9 +130,7 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
    *
    */
   public function abortTranslation(JobInterface $job) {
-    $job_name = db_query('SELECT job_name FROM {tmgmt_globalsight} WHERE tjid = :tjid', array(
-      ':tjid' => $job->id()
-    ))->fetchField();
+    $job_name = $this->getJobName($job);
 
     $translator = $job->getTranslator();
     $gs = new TMGMTGlobalSightConnector ($translator);
@@ -144,6 +142,19 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
       return TRUE;
     }
 
+    return FALSE;
+  }
+
+
+  public function getJobName(JobInterface $job) {
+    $query = \Drupal::database()->select('tmgmt_globalsight', 'gs');
+    $query->addField('gs', 'job_name');
+    $query->condition("gs.tjid", $job->id(), '=');
+    $result = $query->execute()->fetchCol(0);
+
+    if (!empty($result[0])) {
+      return $result[0];
+    }
     return FALSE;
   }
 }
