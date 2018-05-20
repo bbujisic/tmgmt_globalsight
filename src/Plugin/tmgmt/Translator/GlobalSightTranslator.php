@@ -82,28 +82,32 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     // @todo: Dependency injection!
     $gs = new TMGMTGlobalSightConnector($translator);
 
-    // Send translation job to GlobalSight.
-    if ($result = $gs->send($job, $translator->label(), $job->getRemoteTargetLanguage())) {
-      // Okay we managed to send, but we are not sure if GS received translations. Check job status.
-      $ok = $gs->uploadErrorHandler($result['jobName']);
-
-      if ($ok) {
-        // Make sure that there are not previous records of the job.
-        _tmgmt_globalsight_delete_job($job->id());
-
-        $record = array(
-          'tjid' => $job->id(),
-          'job_name' => $result ['jobName'],
-          'status' => 1
-        );
-        $job->submitted('The translation job has been submitted.');
-        \Drupal::database()->insert('tmgmt_globalsight')->fields($record)->execute();
-      }
-      else {
-        // Cancel the job.
-        $job->cancelled('Translation job was cancelled due to unrecoverable error.');
+    // Not all strings in the job are translatable. Find them.
+    $strings = \Drupal::service('tmgmt.data')->filterTranslatable($job->getData());
+    $translation_strings = [];
+    foreach ($strings as $key => $string) {
+      if ($string['#translate']) {
+        $translation_strings[$key] = $string['#text'];
       }
     }
+
+    // Submit the job to GlobalSight.
+    $jobName = $gs->send($job->id(), $job->label(), $job->getRemoteTargetLanguage(), $translation_strings);
+
+    if (!$jobName) {
+      // Cancel the job.
+      $job->rejected('Translation job was cancelled due to unrecoverable error.');
+    }
+
+    // Make sure that there are not previous records of the job.
+    _tmgmt_globalsight_delete_job($job->id());
+    $record = [
+      'tjid' => $job->id(),
+      'job_name' => $jobName,
+      'status' => 1
+    ];
+    $job->submitted('The translation job has been submitted.');
+    \Drupal::database()->insert('tmgmt_globalsight')->fields($record)->execute();
   }
 
   public function requestJobItemsTranslation(array $job_items) {

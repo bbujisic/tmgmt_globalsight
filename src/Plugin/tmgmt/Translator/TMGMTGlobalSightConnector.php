@@ -18,6 +18,8 @@ class TMGMTGlobalSightConnector {
   private $proxyhost = FALSE;
   private $proxyport = FALSE;
   private $file_profile_id = '';
+
+  /** @var \SoapClient */
   private $webservice;
 
   function __construct(TranslatorInterface $translator) {
@@ -54,11 +56,9 @@ class TMGMTGlobalSightConnector {
    * getLocales method sends 'getFileProfileInfoEx' API request and parses a list of available languages.
    */
   function getLocales() {
-
     if (!($access_token = $this->login())) {
       return FALSE;
     }
-
 
     $fileProfiles = $this->getFileProfiles($access_token);
     if (isset($fileProfiles[$this->file_profile_id])) {
@@ -74,56 +74,29 @@ class TMGMTGlobalSightConnector {
   }
 
   /**
-   * Method generates titles for GlobalSight by replacing unsupported characters with underlines and
-   * adding some MD5 hash trails in order to assure uniqueness of job titles.
+   * Prepare XML document to be sent to GlobalSight.
    *
-   * @param JobInterface $job
-   *            Loaded TMGMT Job object.
-   * @return string GlobalSight job title.
+   * @param string $job_id
+   *   Pretty self-explanatory.
+   * @param array $translation_strings
+   *   Key/value array of strings to be translated.
+   * @return string
+   *   XML document to be fed to GlobalSight.
    */
-  function generateJobTitle($job, $label) {
-    $hash = md5($this->base_url . $job->id() . time());
-    if ($job->getSourceLangcode() == "en") {
-      // use post title + hash
-      $post_title = str_replace(array(
-        " ",
-        "\t",
-        "\n",
-        "\r"
-      ), "_", $job->label());
-      $post_title = preg_replace("/[^A-Za-z0-9_]/", "", $post_title);
-      $post_title = substr($post_title, 0, 100) . '_' . $hash;
-    }
-    else {
-      $post_title = 'dp_' . $hash;
-    }
-
-    return $post_title;
-  }
-
-  /**
-   * Method generates XML document for GlobalSight based on TMGMTJob object.
-   *
-   * @param JobInterface $job
-   *            Loaded TMGMT Job object.
-   * @return string XML document as per GlobalSight API specifications.
-   */
-  function encodeXML($job) {
-    $strings = \Drupal::service('tmgmt.data')->filterTranslatable($job->getData());
+  public function prepareXML($job_id, $translation_strings) {
     $xml = "<?xml version='1.0' encoding='UTF-8' ?>";
-    $xml .= "<fields id='" . $job->id() . "'>";
-    foreach ($strings as $key => $string) {
-      if ($string ['#translate']) {
-        $xml .= "<field>";
-        $xml .= "<name>$key</name>";
-        $xml .= "<value><![CDATA[" . $string ['#text'] . "]]></value>";
-        $xml .= "</field>";
-      }
-    }
+    $xml .= "<fields id='" . $job_id . "'>";
+    foreach ($translation_strings as $key => $value) {
+      $xml .= "<field>";
+      $xml .= "<name>" . $key . "</name>";
+      $xml .= "<value><![CDATA[" . $value . "]]></value>";
+      $xml .= "</field>";
+    };
     $xml .= "</fields>";
 
     return $xml;
   }
+
 
   public function getFileProfiles($access_token) {
     $result = $this->call('getFileProfileInfoEx', [
@@ -142,53 +115,75 @@ class TMGMTGlobalSightConnector {
 
   /**
    * Send method encodes and sends translation job to GlobalSight service.
+   * Essentially, it runs 3 subsequent API methods in order to upload files
+   * and check whether the upload succeeded:
+   *   - uploadFile
+   *   - createJob
+   *   - getStatus
    *
-   * @param JobInterface $job
-   *            Loaded TMGMT Job object.
+   * @param int $jobId
+   *   An ID of the job.
    * @param string $label
-   *            Job label.
+   *   Job label.
    * @param string $target_locale
-   *            locale code (e.g. en_US).
-   * @param string $name
-   *            job title.
-   * @return array|false
-   *            Array of parameters sent with CreateJob API call.
+   *   locale code (e.g. en_US).
+   * @param array $translation_strings
+   *   A key/value array of strings to be translated.
+   *
+   * @return FALSE|string
+   *   Job title (which is an amended job label). FALSE if the upload failed.
    */
-  function send($job, $label, $target_locale, $name = FALSE) {
+  // function send($job, $label, $target_locale, $name = FALSE) {
+  function send($jobId, $label, $target_locale, $translation_strings) {
+
+    // @todo: Abstract away!
     if (!($access_token = $this->login())) {
       return FALSE;
     }
 
+    // @todo: Abstract away!
     $fileProfiles = $this->getFileProfiles($access_token);
     if (!isset($fileProfiles[$this->file_profile_id])) {
       // @todo: COME ON -- ERROR MESSAGES!
       return FALSE;
     }
 
-    if (!$name) {
-      $name = $this->generateJobTitle($job, $label);
-    }
+    $name = $this->generateJobTitle($jobId, $label);
+    $xml = $this->prepareXML($jobId, $translation_strings);
 
-    $xml = $this->encodeXML($job);
-    $params = array(
+    $response = $this->call('uploadFile', [
       'accessToken' => $access_token,
       'jobName' => $name,
       'filePath' => 'GlobalSight.xml',
       'fileProfileId' => $this->file_profile_id,
-      'content' => base64_encode($xml)
-    );
-    $response = $this->call('uploadFile', $params);
-    $params = array(
+      'content' => $xml
+    ]);
+    if ($response instanceof Exception) {
+      return FALSE;
+    }
+
+    // So file was "probably" successfully uploaded, we cannot really
+    // know as GlobalSight's uploadFile function is void!
+
+    $response = $this->call('createJob', [
       'accessToken' => $access_token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
       'filePaths' => 'GlobalSight.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
-    );
-    $response = $this->call('createJob', $params);
+    ]);
+    if ($response instanceof Exception) {
+      return FALSE;
+    }
 
-    return $params;
+    // Finally, the only way to really tell if the job upload succeeded
+    // is the getStatus method.
+    if ($this->getStatus($name)) {
+      return $name;
+    };
+
+    return FALSE;
   }
 
   /**
@@ -204,17 +199,16 @@ class TMGMTGlobalSightConnector {
       return FALSE;
     }
 
-    $params = array(
+    $result = $this->call('getStatus', [
       'p_accessToken' => $access_token,
       'p_jobName' => $job_name
-    );
-    $result = $this->call('getStatus', $params);
+    ]);
 
     if (!$result) {
       // I do not like watchdog here! Let's try and create an error handler class in any future refactor
       \Drupal::logger('tmgmt_globalsight')
-        ->error("Error getting job status for !job_name. Translation job will be canceled. <br>", array(
-          '!job_name' => $job_name,
+        ->error("Error getting job status for %job_name. Translation job will be canceled. <br>", array(
+          '%job_name' => $job_name,
         ));
 
       return 'PERMANENT ERROR';
@@ -227,8 +221,8 @@ class TMGMTGlobalSightConnector {
     }
     catch (Exception $err) {
       \Drupal::logger('tmgmt_globalsight')
-        ->error("Error parsing XML for !job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
-          '!job_name' => $job_name,
+        ->error("Error parsing XML for %job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+          '%job_name' => $job_name,
           '%err' => $err
         ));
 
@@ -363,7 +357,7 @@ class TMGMTGlobalSightConnector {
    * @return bool TRUE: if job import succeeded
    *         FALSE: if job import failed
    */
-  function uploadErrorHandler($jobName) {
+  public function uploadErrorHandler($jobName) {
     $status = $this->getStatus($jobName);
     $status = $status['status'];
 
@@ -371,12 +365,12 @@ class TMGMTGlobalSightConnector {
 
     switch ($status) {
 
-      case 'LEVERAGING' :
+      case 'LEVERAGING':
         return TRUE;
         break;
 
       // IMPORT_FAILED appears to be status when XML file is corrupt.
-      case 'IMPORT_FAILED' :
+      case 'IMPORT_FAILED':
         \Drupal::logger('tmgmt_globalsight')
           ->error("Error uploading file to GlobalSight. XML file appears to be corrupt or GlobalSight server timed out. Translation job canceled.", array());
         drupal_set_message(t('Error uploading file to GlobalSight. Translation job canceled.'), 'error');
@@ -386,11 +380,11 @@ class TMGMTGlobalSightConnector {
 
       // UPLOADING can be normal message if translation upload did not finish, but, if unchanged for a period of time,
       // it can also be interpreted as "upload failed" message. So we need to have ugly time testing here.
-      case 'UPLOADING' :
+      case 'UPLOADING':
         // Wait for 5 seconds and check status again.
         sleep(5);
         $revised_status = $this->getStatus($jobName);
-        $revised_status = $revised_status ['status'];
+        $revised_status = $revised_status['status'];
         if ($revised_status == 'UPLOADING') {
 
           // Consolidate this messaging into an error handler and inject it as dependency
@@ -411,24 +405,49 @@ class TMGMTGlobalSightConnector {
    *
    * @param $function_name
    * @param $params
-   * @return null
+   * @return string|Exception
    *
    * @todo: Document it a bit better.
    */
-  private function call($function_name, $params) {
+  public function call($function_name, $params) {
     try {
       $result = $this->webservice->__soapCall($function_name, $params);
     }
     catch (\SoapFault $sf) {
       \Drupal::logger('tmgmt_globalsight')
-        ->notice("SOAP Fault code: !faultcode. <br> <b>Error message:</b><br> %err", array(
-          '!faultcode' => $sf->getCode(),
+        ->notice("<b>Function call: </b>%func<br>
+                    <b>Parameters:</b><br><pre>%params</pre><br>
+                    <b>SOAP Fault code:</b> %faultcode.<br>
+                    <b>Error message:</b><br>%err", [
+          '%func' => $function_name,
+          '%params' => json_encode($params),
+          '%faultcode' => $sf->getCode(),
           '%err' => $sf->getMessage(),
-        ));
+        ]);
 
-      return NULL;
+      return $sf;
     }
 
     return $result;
+  }
+
+
+  /**
+   * Method generates titles for GlobalSight by replacing unsupported characters with underlines and
+   * adding some MD5 hash trails in order to assure uniqueness of job titles.
+   *
+   * @param JobInterface $job
+   *            Loaded TMGMT Job object.
+   * @return string GlobalSight job title.
+   * @todo: Fix PHPDoc!
+   * @todo: Could we use an internal GS method for this, even at the cost of an additional request?
+   */
+  private function generateJobTitle($jobId, $label) {
+    $hash = md5($this->base_url . $jobId . time());
+    $post_title = str_replace([" ", "\t", "\n", "\r"], "_", $label);
+    $post_title = preg_replace("/[^A-Za-z0-9_]/", "", $post_title);
+    $post_title = substr($post_title, 0, 100) . '_' . $hash;
+
+    return $post_title;
   }
 }
