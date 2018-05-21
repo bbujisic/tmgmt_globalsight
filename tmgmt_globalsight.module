@@ -1,99 +1,25 @@
 <?php
 
-global $base_url;
-define('GLOBALSIGHT_WSDL_URL', ($base_url . '/' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml'));
-
-use Drupal\tmgmt\Entity\JobItem;
-use Drupal\tmgmt_globalsight\Plugin\tmgmt\Translator\TMGMTGlobalSightConnector;
-function tmgmt_job_load($tjid) {
-  $jobs = JobItem::loadMultiple ( array (
-      $tjid 
-  ) );
-  return $jobs ? reset ( $jobs ) : FALSE;
-}
-
 /**
  * Implements hook_cron().
  */
 function tmgmt_globalsight_cron() {
-  $result = db_select('tmgmt_globalsight', 't')
-    ->fields('t')
-    ->condition('status', 0, '>')
-    ->execute();
+  // @todo: Turn this upside-down. Iterate through active jobs and load their translators.
 
-  // Loop through jobs and check for translations
-  while ($record = $result->fetchAssoc()) {
-    $job = tmgmt_job_load($record['tjid']);
-    if (!$job) {
-      continue;
-    }
-    
-    $job = $job->getJob ();
-    tmgmt_globalsight_ping($job, $record);
-  }
-}
+  $translators = tmgmt_translator_load_available(NULL);
 
-/**
- * Retrieves job data from GS server and, if status is "Exported" or "Localized"
- * recieves translation and adds translated data.
- *
- * @param $job
- *   Loaded TMGMT Job object.
- * @param $record
- *   {tmgmt_globalsight} record connecting TMGMT and GS jobs
- */
-function tmgmt_globalsight_ping($job, $record) {
+  /** @var \Drupal\tmgmt\Entity\Translator $translator */
+  $translator = $translators['cbn_translator'];
 
-  // Initialize GlobalSight
-  $gs = new TMGMTGlobalSightConnector($job->getTranslator());
+  /** @var \Drupal\tmgmt_globalsight\Plugin\tmgmt\Translator\GlobalSightTranslator $plugin */
+  $plugin = $translator->getPlugin();
 
-  $status = $gs->getStatus($record['job_name']);
-
-  if ($status === "PERMANENT ERROR") {
-    // Update our little mapping table -- archive job
-    $record['status'] = 0;
-    db_update ( 'tmgmt_globalsight' )->condition ( 'tjid', $record ['tjid'] )->fields ( array (
-        'status' => 0 
-    ) )->execute ();
-    $job->aborted('Translation job was cancelled due to unrecoverable error.');
-  }
-
-  // Skip execution if GlobalSight status hasn't changed
-  if ($status['status'] == $gs->code2status($record['status'])) {
+  /** @var \Drupal\tmgmt_globalsight\GlobalsightConnector $gs */
+  if (!($gs = $plugin->getConnector($translator))) {
     return;
+  };
+
+  foreach ($plugin->getUntranslatedJobRecords() as $record) {
+    $plugin->pollGlobalsight($record);
   }
-
-  // So we have translations now!
-  if ($status['status'] == 'EXPORTED' || $status['status'] == 'LOCALIZED') {
-    // Send API request to GS
-    $translation = $gs->receive($record['job_name']);
-    $job->submitted ( 'The translation job has been submitted.' );
-    $job->addTranslatedData( \Drupal::service ( 'tmgmt.data' )->unflatten($translation));
-    $record ['status'] = 0;
-    db_update ( 'tmgmt_globalsight' )->condition ( 'tjid', $record ['tjid'])->fields ( array (
-        'status' => 0 
-    ) )->execute ();
-  }
-}
-
-function _tmgmt_globalsight_delete_job($tjid) {
-  // Delete previous jobs (if any).
-  $num_deleted = db_delete('tmgmt_globalsight')
-    ->condition('tjid', $tjid)
-    ->execute();
-
-  return $num_deleted;
-}
-
-function _tmgmt_globalsight_archive_job($tjid) {
-  $num_updated = db_update('tmgmt_globalsight')
-    ->fields(array('status' => 0))
-    ->condition('tjid', $tjid)
-    ->execute();
-
-  return $num_updated;
-}
-
-function b($var) {
-  var_dump($var); die();
 }

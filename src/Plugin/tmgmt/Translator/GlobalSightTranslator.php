@@ -11,6 +11,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Url;
 use Drupal\tmgmt\ContinuousTranslatorInterface;
+use Drupal\tmgmt\Entity\Job;
 use Drupal\tmgmt\Entity\JobItem;
 use Drupal\tmgmt\Entity\RemoteMapping;
 use Drupal\tmgmt\Entity\Translator;
@@ -89,6 +90,7 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     // Ensure successful GlobalSight connection before continuing.
     if (!($gs = $this->getConnector($translator))) {
       $job->rejected('Job rejected because GS connection could not be established.');
+
       return;
     };
 
@@ -159,6 +161,49 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
   }
 
 
+  public function pollGlobalsight($record) {
+    $job = Job::load($record['tjid']);
+    if (!$job) {
+      // @todo: Archive the record, it got detached from the TMGMT job.
+      return FALSE;
+    }
+
+    $translator = $job->getTranslator();
+
+    if (!($gs = $this->getConnector($translator))) {
+      return FALSE;
+    };
+
+    $status = $gs->getStatus($record['job_name']);
+    if (!$status) {
+      return FALSE;
+    }
+
+    // Skip execution if GlobalSight status hasn't changed
+    if ($status['status'] == $gs->code2status($record['status'])) {
+      return FALSE;
+    }
+
+    // @TODO: delete "dispatched" once you're done with development.
+    // In order for a translation to be considered "ready" it need to be either EXPORTED or LOCALIZED.
+    if (!in_array($status['status'], ['DISPATCHED', 'EXPORTED', 'LOCALIZED'])) {
+      return FALSE;
+    }
+
+    $translation = $gs->receive($record['job_name']);
+
+    $job->addTranslatedData(\Drupal::service('tmgmt.data')->unflatten($translation));
+    $record['status'] = 0;
+
+    \Drupal::database()
+      ->update('tmgmt_globalsight')
+      ->condition('tjid', $record['tjid'])
+      ->fields(['status' => 0])
+      ->execute();
+
+    return TRUE;
+  }
+
   public function getJobName(JobInterface $job) {
     $query = \Drupal::database()->select('tmgmt_globalsight', 'gs');
     $query->addField('gs', 'job_name');
@@ -170,6 +215,21 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     }
 
     return FALSE;
+  }
+
+  public function getUntranslatedJobRecords() {
+    $query = \Drupal::database()->select('tmgmt_globalsight', 'gs');
+    $query->fields('gs');
+    $query->condition('gs.status', 0, '>');
+    $results = $query->execute();
+
+    // Loop through jobs and check for translations
+    $records = [];
+    while ($record = $results->fetchAssoc()) {
+      $records[] = $record;
+    }
+
+    return $records;
   }
 
   public function getConnector(TranslatorInterface $translator) {

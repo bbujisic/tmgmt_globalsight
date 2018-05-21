@@ -107,7 +107,7 @@ class GlobalsightConnector {
    *
    * @param int $jobId
    *   An ID of the job.
-   *   @todo: Consider removing $jobId, it may be useless.
+   * @todo: Consider removing $jobId, it may be useless.
    * @param string $label
    *   Job label.
    * @param string $target_locale
@@ -179,14 +179,8 @@ class GlobalsightConnector {
       'p_jobName' => $job_name
     ]);
 
-    if (!$result) {
-      // I do not like watchdog here! Let's try and create an error handler class in any future refactor
-      \Drupal::logger('tmgmt_globalsight')
-        ->error("Error getting job status for %job_name. Translation job will be canceled. <br>", array(
-          '%job_name' => $job_name,
-        ));
-
-      return 'PERMANENT ERROR';
+    if ($result instanceof \Exception) {
+      return FALSE;
     }
 
     try {
@@ -196,12 +190,12 @@ class GlobalsightConnector {
     }
     catch (Exception $err) {
       \Drupal::logger('tmgmt_globalsight')
-        ->error("Error parsing XML for %job_name. Translation job will be canceled. <br> <b>Error message:</b><br> %err", array(
+        ->error("Error parsing XML for %job_name. <br> <b>Error message:</b><br> %err", array(
           '%job_name' => $job_name,
           '%err' => $err
         ));
 
-      return 'PERMANENT ERROR';
+      return FALSE;
     }
   }
 
@@ -239,29 +233,31 @@ class GlobalsightConnector {
    *         - API response in form of array
    */
   function receive($job_name) {
-    $params = array(
+    $result = $this->call("getJobExportFiles", [
       'p_accessToken' => $this->token,
       'p_jobName' => $job_name
-    );
-    $result = $this->webservice->call("getLocalizedDocuments", $params);
-    $xml = new \SimpleXMLElement($result);
-    $download_url_prefix = $xml->urlPrefix;
-    $result = $this->webservice->call("getJobExportFiles", $params);
-    $xml = new \SimpleXMLElement($result);
-    $paths = $xml->paths;
-    $results = array();
+    ]);
 
-    foreach ($paths as $path) {
-      $path = trim((string) $path);
+    if ($result instanceof \Exception) {
+      return FALSE;
+    }
 
-      // $result = drupal_http_request($download_url_prefix . '/' . $path, $http_options);
-      $data = file_get_contents($download_url_prefix . '/' . $path);
-      $xmlObject = new \SimpleXMLElement($data);
-      foreach ($xmlObject->field as $field) {
-        $value = ( string ) $field->value;
-        $key = ( string ) $field->name;
-        $results [$key] ['#text'] = $value;
-      }
+    $xml = new \SimpleXMLElement($result);
+
+    $jobFiles = (array) $xml;
+    if (!isset($jobFiles['root']) || !isset($jobFiles['paths'])) {
+      return FALSE;
+    }
+
+    $data = file_get_contents($jobFiles['root'] . '/' . $jobFiles['paths']);
+
+    $xmlObject = new \SimpleXMLElement($data);
+
+    $results = [];
+    foreach ($xmlObject->field as $field) {
+      $value = (string) $field->value;
+      $key = (string) $field->name;
+      $results[$key]['#text'] = $value;
     }
 
     return $results;
