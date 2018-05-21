@@ -18,6 +18,7 @@ use Drupal\tmgmt\JobItemInterface;
 use Drupal\tmgmt\SourcePreviewInterface;
 use Drupal\tmgmt\TMGMTException;
 use Drupal\tmgmt\TranslatorPluginBase;
+use Drupal\tmgmt_globalsight\GlobalsightConnector;
 use GuzzleHttp\Exception\RequestException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use GuzzleHttp\ClientInterface;
@@ -37,6 +38,9 @@ use Drupal\tmgmt\Translator\AvailableResult;
  */
 class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFactoryPluginInterface, ContinuousTranslatorInterface {
 
+  /** @var GlobalsightConnector */
+  private $connector;
+
   /**
    * {@inheritdoc}
    */
@@ -52,10 +56,13 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
    * {@inheritdoc}
    */
   public function getSupportedTargetLanguages(TranslatorInterface $translator, $source_language) {
-    // @todo: Dependency injection!
-    $gs = new TMGMTGlobalSightConnector($translator);
-    $locales = $gs->getLocales();
 
+    // Ensure successful GlobalSight connection before continuing.
+    if (!($gs = $this->getConnector($translator))) {
+      return [];
+    };
+
+    $locales = $gs->getLocales();
     if (!($locales)) {
       return [];
     }
@@ -79,8 +86,11 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
   public function requestTranslation(JobInterface $job) {
     $translator = $job->getTranslator();
 
-    // @todo: Dependency injection!
-    $gs = new TMGMTGlobalSightConnector($translator);
+    // Ensure successful GlobalSight connection before continuing.
+    if (!($gs = $this->getConnector($translator))) {
+      $job->rejected('Job rejected because GS connection could not be established.');
+      return;
+    };
 
     // Not all strings in the job are translatable. Find them.
     $strings = \Drupal::service('tmgmt.data')->filterTranslatable($job->getData());
@@ -133,7 +143,10 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     $job_name = $this->getJobName($job);
 
     $translator = $job->getTranslator();
-    $gs = new TMGMTGlobalSightConnector ($translator);
+    // Ensure successful GlobalSight connection before continuing.
+    if (!($gs = $this->getConnector($translator))) {
+      return FALSE;
+    };
 
     if ($status = $gs->cancel($job_name)) {
       _tmgmt_globalsight_archive_job($job->id());
@@ -155,6 +168,35 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     if (!empty($result[0])) {
       return $result[0];
     }
+
     return FALSE;
+  }
+
+  public function getConnector(TranslatorInterface $translator) {
+    if (!empty($this->connector)) {
+      return $this->connector;
+    }
+
+    // @todo: Dependency injection in class constructor, please.
+    /** @var GlobalsightConnector $connector */
+    $connector = $date = \Drupal::service('tmgmt_globalsight.connector');
+    if (!$connector->init(
+      $translator->getSetting('endpoint'),
+      $translator->getSetting('username'),
+      $translator->getSetting('password'),
+      $translator->getSetting('file_profile_name')
+    )) {
+      // @todo: Dependency injection in class constructor, please.
+      $messenger = \Drupal::messenger();
+      $messenger->addMessage(
+        $this->t('An error occurred and connection to GlobalSight translator could not be established'),
+        'error'
+      );
+
+      return FALSE;
+    }
+    $this->connector = $connector;
+
+    return $this->connector;
   }
 }

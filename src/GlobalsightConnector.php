@@ -1,32 +1,34 @@
 <?php
 
-namespace Drupal\tmgmt_globalsight\Plugin\tmgmt\Translator;
+namespace Drupal\tmgmt_globalsight;
 
 use Drupal\tmgmt\JobInterface;
 use Drupal\tmgmt\TranslatorInterface;
 use Masterminds\HTML5\Exception;
+use SoapFault;
 use Symfony\Component\DependencyInjection\SimpleXMLElement;
 
 /**
  * GlobalSight connector.
  */
-class TMGMTGlobalSightConnector {
+class GlobalsightConnector {
   public $base_url = '';
   private $username = '';
   private $password = '';
   private $endpoint = '';
-  private $proxyhost = FALSE;
-  private $proxyport = FALSE;
   private $file_profile_id = '';
+
+  /** @var string */
+  private $token = '';
 
   /** @var \SoapClient */
   private $webservice;
 
-  function __construct(TranslatorInterface $translator) {
-    $this->endpoint = $translator->getSetting('endpoint');
-    $this->username = $translator->getSetting('username');
-    $this->password = $translator->getSetting('password');
-    $this->file_profile_id = $translator->getSetting('file_profile_name');
+  public function init($endpoint, $username, $password, $file_profile_id) {
+    $this->endpoint = $endpoint;
+    $this->username = $username;
+    $this->password = $password;
+    $this->file_profile_id = $file_profile_id;
     $this->base_url = $GLOBALS ['base_url'];
 
     ini_set('soap.wsdl_cache_enabled', 0);
@@ -37,30 +39,36 @@ class TMGMTGlobalSightConnector {
       'exceptions' => TRUE,
     ]);
     $this->webservice->__setLocation($this->endpoint);
+
+    $this->login();
+
+    return $this->token;
   }
 
   /**
    * Authenticate with GS.
-   *
-   * @return string|null
-   *    Token if login succeeded, otherwise logs error and returns NULL.
    */
-  public function login() {
-    return $this->call('login', [
+  private function login() {
+    // We don't want the code execution to continue if auth failed.
+    // @todo: Figure out how to handle this better.
+    $token = $this->call('login', [
       'p_username' => $this->username,
       'p_password' => $this->password,
     ]);
+
+    if ($token instanceof \Exception) {
+      $this->token = FALSE;
+    }
+    else {
+      $this->token = $token;
+    }
   }
 
   /**
    * getLocales method sends 'getFileProfileInfoEx' API request and parses a list of available languages.
    */
   function getLocales() {
-    if (!($access_token = $this->login())) {
-      return FALSE;
-    }
-
-    $fileProfiles = $this->getFileProfiles($access_token);
+    $fileProfiles = $this->getFileProfiles();
     if (isset($fileProfiles[$this->file_profile_id])) {
       $locales = [
         'source' => [$fileProfiles[$this->file_profile_id]['localeInfo']['sourceLocale']],
@@ -73,34 +81,10 @@ class TMGMTGlobalSightConnector {
     return FALSE;
   }
 
-  /**
-   * Prepare XML document to be sent to GlobalSight.
-   *
-   * @param string $job_id
-   *   Pretty self-explanatory.
-   * @param array $translation_strings
-   *   Key/value array of strings to be translated.
-   * @return string
-   *   XML document to be fed to GlobalSight.
-   */
-  public function prepareXML($job_id, $translation_strings) {
-    $xml = "<?xml version='1.0' encoding='UTF-8' ?>";
-    $xml .= "<fields id='" . $job_id . "'>";
-    foreach ($translation_strings as $key => $value) {
-      $xml .= "<field>";
-      $xml .= "<name>" . $key . "</name>";
-      $xml .= "<value><![CDATA[" . $value . "]]></value>";
-      $xml .= "</field>";
-    };
-    $xml .= "</fields>";
 
-    return $xml;
-  }
-
-
-  public function getFileProfiles($access_token) {
+  public function getFileProfiles() {
     $result = $this->call('getFileProfileInfoEx', [
-      'p_accessToken' => $access_token
+      'p_accessToken' => $this->token
     ]);
 
     $profiles = simplexml_load_string($result);
@@ -123,6 +107,7 @@ class TMGMTGlobalSightConnector {
    *
    * @param int $jobId
    *   An ID of the job.
+   *   @todo: Consider removing $jobId, it may be useless.
    * @param string $label
    *   Job label.
    * @param string $target_locale
@@ -133,16 +118,9 @@ class TMGMTGlobalSightConnector {
    * @return FALSE|string
    *   Job title (which is an amended job label). FALSE if the upload failed.
    */
-  // function send($job, $label, $target_locale, $name = FALSE) {
-  function send($jobId, $label, $target_locale, $translation_strings) {
+  public function send($jobId, $label, $target_locale, $translation_strings) {
 
-    // @todo: Abstract away!
-    if (!($access_token = $this->login())) {
-      return FALSE;
-    }
-
-    // @todo: Abstract away!
-    $fileProfiles = $this->getFileProfiles($access_token);
+    $fileProfiles = $this->getFileProfiles();
     if (!isset($fileProfiles[$this->file_profile_id])) {
       // @todo: COME ON -- ERROR MESSAGES!
       return FALSE;
@@ -152,13 +130,13 @@ class TMGMTGlobalSightConnector {
     $xml = $this->prepareXML($jobId, $translation_strings);
 
     $response = $this->call('uploadFile', [
-      'accessToken' => $access_token,
+      'accessToken' => $this->token,
       'jobName' => $name,
       'filePath' => 'GlobalSight.xml',
       'fileProfileId' => $this->file_profile_id,
       'content' => $xml
     ]);
-    if ($response instanceof Exception) {
+    if ($response instanceof \Exception) {
       return FALSE;
     }
 
@@ -166,14 +144,14 @@ class TMGMTGlobalSightConnector {
     // know as GlobalSight's uploadFile function is void!
 
     $response = $this->call('createJob', [
-      'accessToken' => $access_token,
+      'accessToken' => $this->token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
       'filePaths' => 'GlobalSight.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     ]);
-    if ($response instanceof Exception) {
+    if ($response instanceof \Exception) {
       return FALSE;
     }
 
@@ -195,12 +173,9 @@ class TMGMTGlobalSightConnector {
    *         - API response converted to the array.
    */
   function getStatus($job_name) {
-    if (!($access_token = $this->login())) {
-      return FALSE;
-    }
 
     $result = $this->call('getStatus', [
-      'p_accessToken' => $access_token,
+      'p_accessToken' => $this->token,
       'p_jobName' => $job_name
     ]);
 
@@ -239,12 +214,9 @@ class TMGMTGlobalSightConnector {
    *         - API response in form of array
    */
   function cancel($job_name) {
-    if (!($access_token = $this->login())) {
-      return FALSE;
-    }
 
     $result = $this->call('cancelJob', [
-      'p_accessToken' => $access_token,
+      'p_accessToken' => $this->token,
       'p_jobName' => $job_name
     ]);
 
@@ -267,41 +239,24 @@ class TMGMTGlobalSightConnector {
    *         - API response in form of array
    */
   function receive($job_name) {
-    if (!($access_token = $this->login())) {
-      return FALSE;
-    }
-
     $params = array(
-      'p_accessToken' => $access_token,
+      'p_accessToken' => $this->token,
       'p_jobName' => $job_name
     );
     $result = $this->webservice->call("getLocalizedDocuments", $params);
-    $xml = new SimpleXMLElement ($result);
+    $xml = new \SimpleXMLElement($result);
     $download_url_prefix = $xml->urlPrefix;
     $result = $this->webservice->call("getJobExportFiles", $params);
-    $xml = new SimpleXMLElement ($result);
+    $xml = new \SimpleXMLElement($result);
     $paths = $xml->paths;
     $results = array();
-    $http_options = array();
-
-    // Create stream context.
-    // @todo: Test this...
-    if ($this->proxyhost && $this->proxyport) {
-      $aContext = array(
-        'http' => array(
-          'proxy' => $this->proxyhost . ":" . $this->proxyport,
-          'request_fulluri' => TRUE
-        )
-      );
-      $http_options ['context'] = stream_context_create($aContext);
-    }
 
     foreach ($paths as $path) {
-      $path = trim(( string ) $path);
+      $path = trim((string) $path);
 
       // $result = drupal_http_request($download_url_prefix . '/' . $path, $http_options);
       $data = file_get_contents($download_url_prefix . '/' . $path);
-      $xmlObject = new SimpleXMLElement ($data);
+      $xmlObject = new \SimpleXMLElement($data);
       foreach ($xmlObject->field as $field) {
         $value = ( string ) $field->value;
         $key = ( string ) $field->name;
@@ -399,7 +354,7 @@ class TMGMTGlobalSightConnector {
    *
    * @todo: Document it a bit better.
    */
-  public function call($function_name, $params) {
+  public function call($function_name, $params = []) {
     try {
       $result = $this->webservice->__soapCall($function_name, $params);
     }
@@ -421,6 +376,29 @@ class TMGMTGlobalSightConnector {
     return $result;
   }
 
+  /**
+   * Prepare XML document to be sent to GlobalSight.
+   *
+   * @param string $job_id
+   *   Pretty self-explanatory.
+   * @param array $translation_strings
+   *   Key/value array of strings to be translated.
+   * @return string
+   *   XML document to be fed to GlobalSight.
+   */
+  private function prepareXML($job_id, $translation_strings) {
+    $xml = "<?xml version='1.0' encoding='UTF-8' ?>";
+    $xml .= "<fields id='" . $job_id . "'>";
+    foreach ($translation_strings as $key => $value) {
+      $xml .= "<field>";
+      $xml .= "<name>" . $key . "</name>";
+      $xml .= "<value><![CDATA[" . $value . "]]></value>";
+      $xml .= "</field>";
+    };
+    $xml .= "</fields>";
+
+    return $xml;
+  }
 
   /**
    * Method generates titles for GlobalSight by replacing unsupported characters with underlines and
