@@ -4,20 +4,9 @@
  * Implements hook_cron().
  */
 function tmgmt_globalsight_cron() {
-  // @todo: Turn this upside-down. Iterate through active jobs and load their translators.
-
-  $translators = tmgmt_translator_load_available(NULL);
-
-  /** @var \Drupal\tmgmt\Entity\Translator $translator */
-  $translator = $translators['cbn_translator'];
 
   /** @var \Drupal\tmgmt_globalsight\Plugin\tmgmt\Translator\GlobalSightTranslator $plugin */
-  $plugin = $translator->getPlugin();
-
-  /** @var \Drupal\tmgmt_globalsight\GlobalsightConnector $gs */
-  if (!($gs = $plugin->getConnector($translator))) {
-    return;
-  };
+  $plugin = \Drupal::service('plugin.manager.tmgmt.translator')->createInstance('globalsight');
 
   foreach ($plugin->getUntranslatedJobRecords() as $record) {
     $plugin->pollGlobalsight($record);

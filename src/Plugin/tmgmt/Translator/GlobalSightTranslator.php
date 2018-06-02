@@ -108,11 +108,10 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
 
     if (!$jobName) {
       // Cancel the job.
-      $job->rejected('Translation job was cancelled due to unrecoverable error.');
+      $job->rejected('Translation job was rejected due to an unrecoverable error.');
+      return;
     }
 
-    // Make sure that there are not previous records of the job.
-    _tmgmt_globalsight_delete_job($job->id());
     $record = [
       'tjid' => $job->id(),
       'job_name' => $jobName,
@@ -162,6 +161,7 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
 
 
   public function pollGlobalsight($record) {
+    /** @var JobInterface $job */
     $job = Job::load($record['tjid']);
     if (!$job) {
       // @todo: Archive the record, it got detached from the TMGMT job.
@@ -184,9 +184,8 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
       return FALSE;
     }
 
-    // @TODO: delete "dispatched" once you're done with development.
     // In order for a translation to be considered "ready" it need to be either EXPORTED or LOCALIZED.
-    if (!in_array($status['status'], ['DISPATCHED', 'EXPORTED', 'LOCALIZED'])) {
+    if (!in_array($status['status'], ['EXPORTED', 'LOCALIZED'])) {
       return FALSE;
     }
 
