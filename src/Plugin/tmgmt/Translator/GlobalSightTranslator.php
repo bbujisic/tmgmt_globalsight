@@ -238,7 +238,7 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
 
     // @todo: Dependency injection in class constructor, please.
     /** @var GlobalsightConnector $connector */
-    $connector = $date = \Drupal::service('tmgmt_globalsight.connector');
+    $connector = \Drupal::service('tmgmt_globalsight.connector');
     if (!$connector->init(
       $translator->getSetting('endpoint'),
       $translator->getSetting('username'),

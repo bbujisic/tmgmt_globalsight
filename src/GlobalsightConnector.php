@@ -37,6 +37,8 @@ class GlobalsightConnector {
     $this->webservice = new \SoapClient($this->endpoint . '?wsdl', [
       'trace' => FALSE,
       'exceptions' => TRUE,
+      'encoding' => 'ISO-8859-1',
+      'soap_version' => SOAP_1_1,
     ]);
     $this->webservice->__setLocation($this->endpoint);
 
@@ -99,8 +101,9 @@ class GlobalsightConnector {
 
   /**
    * Send method encodes and sends translation job to GlobalSight service.
-   * Essentially, it runs 3 subsequent API methods in order to upload files
+   * Essentially, it runs 4 subsequent API methods in order to upload files
    * and check whether the upload succeeded:
+   *   - getUniqueJobName
    *   - uploadFile
    *   - createJob
    *   - getStatus
@@ -126,28 +129,35 @@ class GlobalsightConnector {
       return FALSE;
     }
 
-    $name = $this->generateJobTitle($jobId, $label);
+    $name = $this->call('getUniqueJobName', [
+      'accessToken' => $this->token,
+      'jobName' => $label,
+    ]);
+
     $xml = $this->prepareXML($jobId, $translation_strings);
 
-    $response = $this->call('uploadFile', [
-      'accessToken' => $this->token,
-      'jobName' => $name,
-      'filePath' => 'GlobalSight.xml',
-      'fileProfileId' => $this->file_profile_id,
-      'content' => $xml
-    ]);
-    if ($response instanceof \Exception) {
+    try {
+      // Void :(
+      $response = $this->webservice->uploadFile(
+        $this->soapVar('accessToken', $this->token),
+        $this->soapVar('jobName', $name),
+        $this->soapVar('filePath', $name . '.xml'),
+        $this->soapVar('fileProfileId', $this->file_profile_id),
+        $this->soapVar('content', $xml, XSD_BASE64BINARY)
+      );
+    }
+    catch (SoapFault $sf) {
+      $this->errorLog($sf, 'uploadFile');
+
       return FALSE;
     }
 
-    // So file was "probably" successfully uploaded, we cannot really
-    // know as GlobalSight's uploadFile function is void!
-
+    // At this point file was "probably" successfully uploaded.
     $response = $this->call('createJob', [
       'accessToken' => $this->token,
       'jobName' => $name,
       'comment' => 'Drupal GlobalSight Translation Module',
-      'filePaths' => 'GlobalSight.xml',
+      'filePaths' => $name . '.xml',
       'fileProfileIds' => $this->file_profile_id,
       'targetLocales' => $target_locale
     ]);
@@ -397,21 +407,35 @@ class GlobalsightConnector {
   }
 
   /**
-   * Method generates titles for GlobalSight by replacing unsupported characters with underlines and
-   * adding some MD5 hash trails in order to assure uniqueness of job titles.
-   *
-   * @param JobInterface $job
-   *            Loaded TMGMT Job object.
-   * @return string GlobalSight job title.
-   * @todo: Fix PHPDoc!
-   * @todo: Could we use an internal GS method for this, even at the cost of an additional request?
+   * @todo: Documentation.
    */
-  private function generateJobTitle($jobId, $label) {
-    $hash = md5($this->base_url . $jobId . time());
-    $post_title = str_replace([" ", "\t", "\n", "\r"], "_", $label);
-    $post_title = preg_replace("/[^A-Za-z0-9_]/", "", $post_title);
-    $post_title = substr($post_title, 0, 100) . '_' . $hash;
+  private function soapVar($name, $value, $encoding = XSD_STRING) {
+    return new \SoapVar($value, $encoding, NULL, NULL, $name);
+  }
 
-    return $post_title;
+  /**
+   * @todo: Documentation.
+   */
+  private function errorLog(\SoapFault $sf, $function_name = NULL, $params = NULL) {
+    $message = '';
+    $args = [
+      '%faultcode' => $sf->getCode(),
+      '%err' => $sf->getMessage()
+    ];
+
+    if ($function_name) {
+      $message .= '"<b>Function call: </b>%func<br>';
+      $args['%func'] = $function_name;
+    }
+
+    if ($params) {
+      $message .= '"<b>Parameters:</b><br><pre>%params</pre><br>';
+      $args['%params'] = json_encode($params);
+    }
+
+    $message .= '<b>SOAP Fault code:</b> %faultcode.<br>';
+    $message .= '<b>Error message:</b><br>%err<br>';
+
+    \Drupal::logger('tmgmt_globalsight')->notice($message, $args);
   }
 }
