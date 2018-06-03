@@ -109,6 +109,7 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     if (!$jobName) {
       // Cancel the job.
       $job->rejected('Translation job was rejected due to an unrecoverable error.');
+
       return;
     }
 
@@ -239,11 +240,16 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     // @todo: Dependency injection in class constructor, please.
     /** @var GlobalsightConnector $connector */
     $connector = \Drupal::service('tmgmt_globalsight.connector');
+
+    $uri = 'base:' . drupal_get_path('module', 'tmgmt_globalsight') . '/AmbassadorWebService.xml';
+    $wsdl = Url::fromUri($uri, ['absolute' => TRUE])->toString();
+
     if (!$connector->init(
       $translator->getSetting('endpoint'),
       $translator->getSetting('username'),
       $translator->getSetting('password'),
-      $translator->getSetting('file_profile_name')
+      $translator->getSetting('file_profile_name'),
+      $wsdl
     )) {
       // @todo: Dependency injection in class constructor, please.
       $messenger = \Drupal::messenger();

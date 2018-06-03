@@ -24,7 +24,7 @@ class GlobalsightConnector {
   /** @var \SoapClient */
   private $webservice;
 
-  public function init($endpoint, $username, $password, $file_profile_id) {
+  public function init($endpoint, $username, $password, $file_profile_id, $wsdl = FALSE) {
     $this->endpoint = $endpoint;
     $this->username = $username;
     $this->password = $password;
@@ -34,7 +34,12 @@ class GlobalsightConnector {
     ini_set('soap.wsdl_cache_enabled', 0);
     ini_set('soap.wsdl_cache_ttl', 0);
 
-    $this->webservice = new \SoapClient($this->endpoint . '?wsdl', [
+    // Bad idea -- remote wsdl's may not be working in some instances.
+    if (!$wsdl) {
+      $wsdl = $this->endpoint . '?wsdl';
+    }
+
+    $this->webservice = new \SoapClient($wsdl, [
       'trace' => FALSE,
       'exceptions' => TRUE,
       'encoding' => 'ISO-8859-1',
@@ -131,8 +136,14 @@ class GlobalsightConnector {
 
     $name = $this->call('getUniqueJobName', [
       'accessToken' => $this->token,
-      'jobName' => $label,
+      'jobName' => substr($label, 0, 80),
     ]);
+
+    if ($name instanceof \Exception) {
+      var_dump($name->getMessage());
+      die();
+    }
+
 
     $xml = $this->prepareXML($jobId, $translation_strings);
 
