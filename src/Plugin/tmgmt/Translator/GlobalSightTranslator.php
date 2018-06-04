@@ -245,7 +245,7 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
       $translator->getSetting('endpoint'),
       $translator->getSetting('username'),
       $translator->getSetting('password'),
-      $translator->getSetting('file_profile_name'),
+      $translator->getSetting('file_profile_id'),
       $wsdl
     )) {
       // @todo: Dependency injection in class constructor, please.
