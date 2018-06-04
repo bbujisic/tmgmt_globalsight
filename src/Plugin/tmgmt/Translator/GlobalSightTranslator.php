@@ -42,6 +42,12 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
   /** @var GlobalsightConnector */
   private $connector;
 
+  const STATUS_ARCHIVED = 0;
+  const STATUS_DISPATCHED = 1;
+  const STATUS_EXPORTED = 2;
+  const STATUS_LOCALIZED = 3;
+  const STATUS_CANCELED = 4;
+
   /**
    * {@inheritdoc}
    */
@@ -128,30 +134,26 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
   }
 
   /**
-   *
    * {@inheritdoc}
-   *
    */
   public function hasCheckoutSettings(JobInterface $job) {
     return FALSE;
   }
 
   /**
-   *
    * {@inheritdoc}
-   *
    */
   public function abortTranslation(JobInterface $job) {
     $job_name = $this->getJobName($job);
-
     $translator = $job->getTranslator();
+
     // Ensure successful GlobalSight connection before continuing.
     if (!($gs = $this->getConnector($translator))) {
       return FALSE;
     };
 
     if ($status = $gs->cancel($job_name)) {
-      _tmgmt_globalsight_archive_job($job->id());
+      $this->updateJobRecord($job->id(), self::STATUS_ARCHIVED);
       $job->aborted('The translation job has successfully been canceled');
 
       return TRUE;
@@ -193,13 +195,8 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     $translation = $gs->receive($record['job_name']);
 
     $job->addTranslatedData(\Drupal::service('tmgmt.data')->unflatten($translation));
-    $record['status'] = 0;
 
-    \Drupal::database()
-      ->update('tmgmt_globalsight')
-      ->condition('tjid', $record['tjid'])
-      ->fields(['status' => 0])
-      ->execute();
+    $this->updateJobRecord($record['tjid'], self::STATUS_ARCHIVED);
 
     return TRUE;
   }
@@ -263,5 +260,13 @@ class GlobalSightTranslator extends TranslatorPluginBase implements ContainerFac
     $this->connector = $connector;
 
     return $this->connector;
+  }
+
+  private function updateJobRecord($tjid, $status) {
+    \Drupal::database()
+      ->update('tmgmt_globalsight')
+      ->condition('tjid', $tjid)
+      ->fields(['status' => $status])
+      ->execute();
   }
 }
