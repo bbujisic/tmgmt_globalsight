@@ -9,8 +9,8 @@ TMGMT GlobalSight provides GlobalSight TMS integration for TMGMT module.
 Translation Management Tool (TMGMT)
   https://drupal.org/project/tmgmt
 
-Nusoap library
-  http://sourceforge.net/projects/nusoap/
+PHP Soap extension
+  See http://php.net/manual/en/book.soap.php.
 
 GlobalSight instance
   Download source code: http://sourceforge.net/projects/globalsight/
@@ -21,13 +21,10 @@ GlobalSight instance
 
 Install as usual, see https://www.drupal.org/node/1897420 for further information.
 
-Download and extract nusoap into module's lib subdirectory. Path to nusoap.php
-  file should be tmgmt_globalsight/lib/nusoap/lib/nusoap.php
-
 
 -- CONTACT --
 
-WELOCALIZE - https://www.drupal.org/user/3463233
+Branislav Bujisic - https://www.drupal.org/u/bbujisic
 
 
 -- THANKS TO --
