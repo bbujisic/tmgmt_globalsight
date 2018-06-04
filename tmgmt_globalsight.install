@@ -4,41 +4,33 @@
  * Implements hook_schema().
  */
 function tmgmt_globalsight_schema() {
-  $schema['tmgmt_globalsight'] = array(
+  $schema['tmgmt_globalsight'] = [
     'description' => 'A translation job represents a translation order that can be assigned to a translator.',
-    'fields' => array(
-      'tjid' => array(
+    'fields' => [
+      'tjid' => [
         'description' => 'The identifier of the translation job.',
         'type' => 'int',
-        'not null' => TRUE 
-      ),
-      'job_name' => array(
+        'not null' => TRUE
+      ],
+      'job_name' => [
         'description' => 'GlobalSight Job Name.',
         'type' => 'varchar',
         'length' => 255,
-        'not null' => TRUE 
-      ),
-      'status' => array(
+        'not null' => TRUE
+      ],
+      'status' => [
         'description' => 'The state of the translation job.',
         'type' => 'int',
         'not null' => TRUE,
         'size' => 'tiny',
-        'unsigned' => TRUE 
-      ) 
-    ),
-    'primary key' => array('tjid'),
-    'indexes' => array(
-      'status' => array('status') 
-    ) 
-  );
+        'unsigned' => TRUE
+      ]
+    ],
+    'primary key' => ['tjid'],
+    'indexes' => [
+      'status' => ['status']
+    ]
+  ];
 
   return $schema;
-}
-
-/**
- * Removes job_id status and profile ID fields from {tmgmt_globalsight} table.
- */
-function tmgmt_globalsight_update_7100() {
-  db_drop_field('tmgmt_globalsight', 'job_id');
-  db_drop_field('tmgmt_globalsight', 'profile_id');
 }
