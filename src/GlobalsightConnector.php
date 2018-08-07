@@ -105,6 +105,25 @@ class GlobalsightConnector {
   }
 
   /**
+   * GlobalSight is picky about its job labels. Sanitation FTW!
+   *
+   * @param $label string
+   * @return string
+   */
+  public static function sanitizeLabel($label) {
+    $label = trim($label);
+    $label = str_replace(['\\', '/', ':', ';', '`', '?', '|', '"', '<', '>', '%', '&'], '', $label);
+    $label = substr($label, 0, 80);
+
+
+    if(!$label) {
+      $label = uniqid('translation_');
+    }
+
+    return $label;
+  }
+
+  /**
    * Send method encodes and sends translation job to GlobalSight service.
    * Essentially, it runs 4 subsequent API methods in order to upload files
    * and check whether the upload succeeded:
@@ -136,7 +155,7 @@ class GlobalsightConnector {
 
     $name = $this->call('getUniqueJobName', [
       'accessToken' => $this->token,
-      'jobName' => substr($label, 0, 80),
+      'jobName' => self::sanitizeLabel($label),
     ]);
 
     if ($name instanceof \Exception) {
